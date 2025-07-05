@@ -13,6 +13,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'https://algoqube.com',
+  'https://client-algoqubeai.vercel.app/',
   'null', // for file:// access to test locally
 ];
 
