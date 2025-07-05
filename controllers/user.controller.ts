@@ -120,8 +120,10 @@ export const loginUser = async (req: Request, res: Response) => {
       path: '/',
     });
 
+    // ✅ Also return token in response body so frontend can store it
     res.status(200).json({
       message: 'Login successful',
+      token,
       user: {
         _id: user._id,
         name: user.name,
@@ -137,27 +139,32 @@ export const loginUser = async (req: Request, res: Response) => {
   }
 };
 
-
+/**
+ * @route   GET /api/users/me
+ */
 export const getCurrentUser = (req: Request, res: Response) => {
-    const token = req.cookies.token;
-  
-    if (!token) return res.status(401).json({ message: 'Unauthorized' });
-  
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-      res.status(200).json({ user: decoded });
-    } catch (err) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-  };
+  const token = req.cookies.token;
 
+  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    res.status(200).json({ user: decoded });
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+/**
+ * @route   POST /api/users/logout
+ */
 export const logoutUser = (req: Request, res: Response): void => {
-    res.clearCookie('token', {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
-  
-    res.status(200).json({ message: 'Logged out successfully' });
-  };
+  res.clearCookie('token', {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+
+  res.status(200).json({ message: 'Logged out successfully' });
+};

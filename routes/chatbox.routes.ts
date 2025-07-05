@@ -5,12 +5,14 @@ import {
   getChatboxById,
   updateChatbox,
   deleteChatbox,
+  getChatboxByName,
 } from '../controllers/chatbox.controller';
 
 const router = express.Router();
 
-router.post('/', createChatbox); // no multer
+router.post('/', createChatbox);
 router.get('/', getChatboxes);
+router.get('/by-name/:name', getChatboxByName); 
 router.get('/:id', getChatboxById);
 router.put('/:id', updateChatbox);
 router.delete('/:id', deleteChatbox);
