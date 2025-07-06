@@ -220,3 +220,34 @@ export const getChatboxByName = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch chatbox by name' });
   }
 };
+
+// 🎯 Update ONLY the configuration object
+export const updateChatboxConfiguration = async (req: Request, res: Response) => {
+    try {
+      const userId = getUserFromRequest(req);
+      const { id } = req.params;
+      const { configuration } = req.body;
+  
+      if (!configuration || typeof configuration !== 'object') {
+        return res.status(400).json({ error: 'Missing or invalid configuration data' });
+      }
+  
+      const chatbox = await Chatbox.findById(id);
+      if (!chatbox || chatbox.createdBy.toString() !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+  
+      chatbox.configuration = {
+        ...chatbox.configuration,
+        ...configuration,
+      };
+  
+      await chatbox.save();
+  
+      res.json({ message: 'Configuration updated successfully', configuration: chatbox.configuration });
+    } catch (err: any) {
+      console.error('[Update Config Error]', err);
+      res.status(500).json({ error: err.message || 'Failed to update configuration' });
+    }
+  };
+  
