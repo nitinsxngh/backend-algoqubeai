@@ -1,11 +1,14 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 
 import userRoutes from './routes/user.routes';
 import chatboxRoutes from './routes/chatbox.routes';
 import embedRoutes from './routes/embed.routes';
-import chatWidgetRoutes from './routes/chat-widget.routes'; // 👈 Make sure this exists
+import chatWidgetRoutes from './routes/chat-widget.routes';
+
+dotenv.config();
 
 const app = express();
 
@@ -13,8 +16,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:3000',
   'https://algoqube.com',
-  'https://client-algoqubeai.vercel.app/',
-  'null', // for file:// access to test locally
+  'https://client-algoqubeai.vercel.app',
+  'null', // For local file:// testing
 ];
 
 app.use(
@@ -26,22 +29,26 @@ app.use(
         callback(new Error('Not allowed by CORS'));
       }
     },
-    credentials: true,
+    credentials: true, // 🔒 Send cookies
   })
 );
 
-// --- Body Parser ---
+// --- Middleware ---
 app.use(express.json());
-
-// --- Cookie Parser ---
 app.use(cookieParser());
 
 // --- API Routes ---
 app.use('/api/users', userRoutes);
 app.use('/api/chatboxes', chatboxRoutes);
 
-// --- Embed + Chat Widget Routes ---
-app.use(embedRoutes);       // Serves /embed.js
-app.use(chatWidgetRoutes);  // Serves /chat-widget
+// --- Static Embed Scripts ---
+app.use(embedRoutes);       // e.g., GET /embed.js
+app.use(chatWidgetRoutes);  // e.g., GET /chat-widget
+
+// --- Error Handling Middleware ---
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: err.message || 'Internal Server Error' });
+});
 
 export default app;

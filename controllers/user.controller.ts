@@ -114,11 +114,12 @@ export const loginUser = async (req: Request, res: Response) => {
     // ✅ Set HttpOnly cookie
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, // ✅ required for cross-site cookies on HTTPS
+      sameSite: 'none', // ✅ for cross-origin cookie sharing
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
+    
 
     // ✅ Also return token in response body so frontend can store it
     res.status(200).json({
@@ -162,8 +163,8 @@ export const logoutUser = (req: Request, res: Response): void => {
   res.clearCookie('token', {
     path: '/',
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none',
+    secure: true,
   });
 
   res.status(200).json({ message: 'Logged out successfully' });
