@@ -30,6 +30,23 @@ const ChatboxSchema = new mongoose.Schema(
         avgConversationTime: { type: Number, default: 0 },
         leadsCollected: { type: Number, default: 0 },
       },
+      conversations: [{
+        id: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        duration: { type: Number, default: 0 },
+        messageCount: { type: Number, default: 0 },
+        tokensUsed: { type: Number, default: 0 },
+        messages: [{
+          role: { type: String, enum: ['user', 'bot'], required: true },
+          content: { type: String, required: true },
+          timestamp: { type: Date, default: Date.now },
+          tokensUsed: { type: Number, default: 0 }
+        }],
+        website: String,
+        userAgent: String,
+        ip: String,
+        status: { type: String, enum: ['active', 'completed', 'abandoned'], default: 'active' }
+      }]
     },
     { timestamps: true }
   );

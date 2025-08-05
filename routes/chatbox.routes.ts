@@ -7,15 +7,24 @@ import {
   deleteChatbox,
   getChatboxByName,
   updateChatboxConfiguration,
+  incrementWebsiteVisits,
+  analyzeWebsiteColors,
 } from '../controllers/chatbox.controller';
+import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
-router.post('/', createChatbox);
-router.get('/', getChatboxes);
-router.get('/by-name/:name', getChatboxByName); 
-router.get('/:id', getChatboxById);
-router.put('/:id', updateChatbox);
-router.delete('/:id', deleteChatbox);
-router.patch('/:id/configuration', updateChatboxConfiguration);
+
+// Public routes (no authentication required) - MUST come before parameterized routes
+router.get('/analyze-colors', analyzeWebsiteColors);
+router.post('/increment-visit', incrementWebsiteVisits);
+router.get('/by-name/:name', getChatboxByName); // Public route for embed.js
+
+// Protected routes (require authentication)
+router.post('/', authenticate, createChatbox);
+router.get('/', authenticate, getChatboxes);
+router.get('/:id', authenticate, getChatboxById);
+router.put('/:id', authenticate, updateChatbox);
+router.delete('/:id', authenticate, deleteChatbox);
+router.patch('/:id/configuration', authenticate, updateChatboxConfiguration);
 
 export default router;
