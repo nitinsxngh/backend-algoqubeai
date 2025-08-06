@@ -369,8 +369,31 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
         fullPage: false // Only visible area
       });
       
-      // Get CSS colors from the page
-      const cssColors = await page.evaluate(() => {
+      // Get CSS colors and computed styles from the page
+      const pageColors = await page.evaluate(() => {
+        const colors: string[] = [];
+        
+        // Get computed styles from important elements
+        const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, a, button, .btn, .button, [class*="primary"], [class*="accent"], [class*="brand"], [class*="logo"], nav, header, .header, .nav, .brand, .logo');
+        
+        elements.forEach(el => {
+          const computedStyle = window.getComputedStyle(el);
+          const color = computedStyle.color;
+          const backgroundColor = computedStyle.backgroundColor;
+          const borderColor = computedStyle.borderColor;
+          
+          if (color && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') {
+            colors.push(color);
+          }
+          if (backgroundColor && backgroundColor !== 'rgba(0, 0, 0, 0)' && backgroundColor !== 'transparent') {
+            colors.push(backgroundColor);
+          }
+          if (borderColor && borderColor !== 'rgba(0, 0, 0, 0)' && borderColor !== 'transparent') {
+            colors.push(borderColor);
+          }
+        });
+        
+        // Also get colors from CSS
         const styles = Array.from(document.styleSheets)
           .map(sheet => {
             try {
@@ -383,25 +406,35 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
           })
           .join('\n');
         
-        return styles;
-      });
-      
-      // Extract colors from CSS
-      const extractCssColors = (cssText: string): string[] => {
-        const colors: string[] = [];
-        
-        // Match hex colors
-        const hexMatches = cssText.match(/#[0-9a-fA-F]{3,6}/g) || [];
+        // Extract hex colors from CSS
+        const hexMatches = styles.match(/#[0-9a-fA-F]{3,6}/g) || [];
         colors.push(...hexMatches);
         
-        // Match rgb/rgba colors
-        const rgbMatches = cssText.match(/rgba?\([^)]+\)/g) || [];
-        colors.push(...rgbMatches);
-        
         return [...new Set(colors)]; // Remove duplicates
+      });
+      
+      // Convert all colors to hex format
+      const convertToHex = (color: string): string | null => {
+        // If already hex, return as is
+        if (color.startsWith('#')) {
+          return color;
+        }
+        
+        // Handle rgb/rgba
+        const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
+        if (rgbMatch) {
+          const r = parseInt(rgbMatch[1]);
+          const g = parseInt(rgbMatch[2]);
+          const b = parseInt(rgbMatch[3]);
+          return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+        
+        return null;
       };
       
-      const extractedCssColors = extractCssColors(cssColors);
+      const extractedCssColors = pageColors
+        .map(convertToHex)
+        .filter((color: string | null): color is string => color !== null);
       
       // Convert screenshot to image data for analysis
       const canvas = createCanvas(1920, 1080);
@@ -414,13 +447,13 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
       // Get image data
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       
-      // Analyze colors from image data
+      // Analyze colors from image data with better filtering
       const analyzeImageColors = (imageData: Uint8ClampedArray, width: number, height: number) => {
         const colorMap = new Map<string, number>();
         const totalPixels = width * height;
         
-        // Sample pixels (every 10th pixel to improve performance)
-        const sampleRate = 10;
+        // Sample pixels (every 5th pixel for better accuracy)
+        const sampleRate = 5;
         
         for (let i = 0; i < totalPixels; i += sampleRate) {
           const pixelIndex = i * 4;
@@ -432,11 +465,27 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
           // Skip transparent pixels
           if (a < 128) continue;
           
-          // Skip very light or very dark pixels (likely backgrounds)
+          // Calculate brightness and saturation
           const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          if (brightness < 30 || brightness > 240) continue;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const saturation = max === 0 ? 0 : (max - min) / max;
           
-          const hexColor = '#' + [r, g, b].map(x => {
+          // Skip very light backgrounds (likely whites/grays)
+          if (brightness > 250) continue;
+          
+          // Skip very dark backgrounds (likely blacks)
+          if (brightness < 20) continue;
+          
+          // Prefer colors with some saturation (not pure grays)
+          if (saturation < 0.1) continue;
+          
+          // Quantize colors to reduce noise (group similar colors)
+          const quantizedR = Math.round(r / 16) * 16;
+          const quantizedG = Math.round(g / 16) * 16;
+          const quantizedB = Math.round(b / 16) * 16;
+          
+          const hexColor = '#' + [quantizedR, quantizedG, quantizedB].map(x => {
             const hex = x.toString(16);
             return hex.length === 1 ? '0' + hex : hex;
           }).join('');
@@ -448,7 +497,7 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
         return Array.from(colorMap.entries())
           .map(([color, frequency]) => ({ color, frequency }))
           .sort((a, b) => b.frequency - a.frequency)
-          .slice(0, 20) // Increased to top 20 colors
+          .slice(0, 15) // Top 15 colors
           .map(item => item.color);
       };
       
@@ -457,17 +506,48 @@ export const analyzeWebsiteColors = async (req: Request, res: Response) => {
       // Combine all colors and filter for good theme colors
       const allColors = [...new Set([...dominantColors, ...extractedCssColors])];
       
-      // Filter colors for good theme candidates (avoid very light/dark colors)
-      const themeColors = allColors.filter(color => {
-        if (color.startsWith('#')) {
-          const r = parseInt(color.slice(1, 3), 16);
-          const g = parseInt(color.slice(3, 5), 16);
-          const b = parseInt(color.slice(5, 7), 16);
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          return brightness > 40 && brightness < 220; // Wider brightness range for more options
-        }
-        return true; // Keep non-hex colors
-      }).slice(0, 12); // Increased to 12 colors
+      // Filter and score colors for good theme candidates
+      const scoredColors = allColors.map(color => {
+        if (!color.startsWith('#')) return { color, score: 0 };
+        
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const saturation = max === 0 ? 0 : (max - min) / max;
+        
+        let score = 0;
+        
+        // Prefer medium brightness (good for UI elements)
+        if (brightness >= 60 && brightness <= 200) score += 3;
+        else if (brightness >= 40 && brightness <= 220) score += 1;
+        
+        // Prefer colors with good saturation
+        if (saturation >= 0.3) score += 2;
+        else if (saturation >= 0.15) score += 1;
+        
+        // Bonus for common brand colors
+        const commonColors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+        if (commonColors.includes(color)) score += 2;
+        
+        return { color, score };
+      });
+      
+      // Sort by score and take top colors
+      const themeColors = scoredColors
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8) // Top 8 colors
+        .map(item => item.color);
+      
+      // If we don't have enough colors, add some fallbacks
+      if (themeColors.length < 4) {
+        const fallbacks = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+        themeColors.push(...fallbacks.slice(0, 4 - themeColors.length));
+      }
       
       console.log(`Color analysis completed. Found ${themeColors.length} theme colors.`);
       
