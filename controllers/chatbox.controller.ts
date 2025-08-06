@@ -39,8 +39,8 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     const filename = `${organizationName}-${Date.now()}.txt`;
-    const s3Url = await uploadTextToS3(filename.replace('.txt', ''), customContent || '');
-
+    
+    // Create chatbox first (fast operation)
     const newChatbox = await Chatbox.create({
       name: filename.replace('.txt', ''),
       organizationName,
@@ -59,42 +59,53 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
       },
     });
 
-    // Refresh CORS cache if domainUrl was provided
-    if (domainUrl) {
-      try {
-        await refreshCorsCache();
-        console.log('[CreateChatbox] CORS cache refreshed after new domain URL');
-      } catch (corsError) {
-        console.warn('[CreateChatbox] Failed to refresh CORS cache:', corsError);
-      }
-    }
-
-    try {
-      await axios.post('https://sangam.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
-        filename,
-      });
-    } catch (webhookErr: unknown) {
-      console.warn('[Webhook Warning]', webhookErr instanceof Error ? webhookErr.message : webhookErr);
-    }
-
-    // Create success notification
-    try {
-      await createNotification(
-        userId,
-        'Chatbot Created Successfully',
-        `Your AI assistant "${organizationName}" has been deployed successfully.`,
-        'success',
-        { chatboxId: newChatbox._id, organizationName }
-      );
-    } catch (notificationErr) {
-      console.warn('[Notification Warning]', notificationErr);
-    }
-
+    // Send response immediately
     res.status(201).json({
       message: 'Chatbox created',
       chatbox: newChatbox,
-      contentFileUrl: s3Url,
+      contentFileUrl: '', // Will be updated asynchronously
     });
+
+    // Perform slow operations asynchronously after response
+    (async () => {
+      try {
+        // Upload to S3 (slow operation)
+        const s3Url = await uploadTextToS3(filename.replace('.txt', ''), customContent || '');
+        
+        // Update chatbox with S3 URL
+        await Chatbox.findByIdAndUpdate(newChatbox._id, {
+          'configuration.contentFileUrl': s3Url
+        });
+
+        // Refresh CORS cache if domainUrl was provided (non-blocking)
+        if (domainUrl) {
+          refreshCorsCache().catch(corsError => {
+            console.warn('[CreateChatbox] Failed to refresh CORS cache:', corsError);
+          });
+        }
+
+        // Send webhook (non-blocking)
+        axios.post('https://sangam.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+          filename,
+        }).catch(webhookErr => {
+          console.warn('[Webhook Warning]', webhookErr instanceof Error ? webhookErr.message : webhookErr);
+        });
+
+        // Create success notification (non-blocking)
+        createNotification(
+          userId,
+          'Chatbot Created Successfully',
+          `Your AI assistant "${organizationName}" has been deployed successfully.`,
+          'success',
+          { chatboxId: newChatbox._id, organizationName }
+        ).catch(notificationErr => {
+          console.warn('[Notification Warning]', notificationErr);
+        });
+
+      } catch (err) {
+        console.error('[Async Chatbox Operations Error]', err);
+      }
+    })();
   } catch (err: any) {
     console.error('[Create Chatbox Error]', err);
     res.status(500).json({ error: err.message || 'Failed to create chatbox' });

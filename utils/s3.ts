@@ -19,7 +19,14 @@ export const uploadTextToS3 = async (filename: string, content: string): Promise
     ContentType: 'text/plain',
   };
 
-  await s3.putObject(params).promise();
+  // Add timeout to prevent hanging
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('S3 upload timeout')), 10000); // 10 second timeout
+  });
+
+  const uploadPromise = s3.putObject(params).promise();
+  
+  await Promise.race([uploadPromise, timeoutPromise]);
 
   return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
 };
