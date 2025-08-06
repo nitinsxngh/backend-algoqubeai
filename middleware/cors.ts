@@ -51,9 +51,13 @@ export async function getAllowedOrigins(): Promise<string[]> {
   // Combine with static origins
   const staticOrigins: string[] = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://algoqube.com',
+    'https://www.algoqube.com',
+    'https://*.algoqube.com',
     'https://client-algoqubeai.vercel.app',
     'https://rococo-kashata-839276.netlify.app',
+    'https://*.vercel.app',
   ];
   
   // Add environment variable if it exists
@@ -85,8 +89,18 @@ export const dynamicCors = async (req: Request, res: Response, next: NextFunctio
       return next();
     }
     
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
+    // Check if origin is in allowed list (including wildcard patterns)
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin === origin) return true;
+      if (allowedOrigin.includes('*')) {
+        const pattern = allowedOrigin.replace('*', '.*');
+        const regex = new RegExp(pattern);
+        return regex.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Credentials', 'true');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -125,7 +139,10 @@ export const refreshCorsCache = async (): Promise<void> => {
 export const staticCors = cors({
   origin: [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://algoqube.com',
+    'https://www.algoqube.com',
+    'https://*.algoqube.com',
     'https://client-algoqubeai.vercel.app',
     'https://rococo-kashata-839276.netlify.app',
     process.env.FRONTEND_URL,
