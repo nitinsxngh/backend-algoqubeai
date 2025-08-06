@@ -323,7 +323,11 @@ export const loginUser = async (req: Request, res: Response) => {
       role: user.role,
     };
 
-    res.json({ message: 'Login successful', user: responseUser });
+    res.json({ 
+      message: 'Login successful', 
+      user: responseUser,
+      token: token // Also return token in response body for frontend storage
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed', details: err });
