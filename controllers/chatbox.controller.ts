@@ -267,9 +267,20 @@ export const updateChatboxConfiguration = async (req: AuthenticatedRequest, res:
       
       const userId = req.user.id;
       const { id } = req.params;
-      const { configuration } = req.body;
-  
+      let configuration = req.body.configuration;
+      
+      console.log('[UpdateConfig] Request body:', req.body);
+      console.log('[UpdateConfig] Configuration:', configuration);
+      
+      // Handle both formats: { configuration: {...} } and { field: value }
+      if (!configuration) {
+        // If no configuration object, treat the entire body as configuration data
+        configuration = req.body;
+        console.log('[UpdateConfig] Using entire body as configuration:', configuration);
+      }
+      
       if (!configuration || typeof configuration !== 'object') {
+        console.error('[UpdateConfig] Invalid configuration data:', configuration);
         return res.status(400).json({ error: 'Missing or invalid configuration data' });
       }
   
