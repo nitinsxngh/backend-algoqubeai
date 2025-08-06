@@ -17,10 +17,11 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
     const userId = req.user.id;
     console.log('[CreateChatbox] User ID:', userId);
 
-    const existing = await Chatbox.findOne({ createdBy: userId });
-    if (existing) {
-      return res.status(400).json({ error: 'You already created a chatbot' });
-    }
+    // Allow multiple chatbots per user
+    // const existing = await Chatbox.findOne({ createdBy: userId });
+    // if (existing) {
+    //   return res.status(400).json({ error: 'You already created a chatbot' });
+    // }
 
     const {
       organizationName,
