@@ -69,7 +69,11 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     try {
+<<<<<<< HEAD
       await axios.post('https://n8n.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+=======
+      await axios.post('https://sangam.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+>>>>>>> d7d803fd5535fb67d5197c219e1b9ad6edd7c60c
         filename,
       });
     } catch (webhookErr: unknown) {
@@ -170,7 +174,11 @@ export const updateChatbox = async (req: AuthenticatedRequest, res: Response) =>
       await uploadTextToS3(filename, customContent);
 
       try {
+<<<<<<< HEAD
         await axios.post('https://n8n.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+=======
+        await axios.post('https://sangam.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+>>>>>>> d7d803fd5535fb67d5197c219e1b9ad6edd7c60c
           filename: `${filename}.txt`,
         });
       } catch (webhookErr: unknown) {
