@@ -323,11 +323,7 @@ export const loginUser = async (req: Request, res: Response) => {
       role: user.role,
     };
 
-<<<<<<< HEAD
     res.json({ message: 'Login successful', user: responseUser, token });
-=======
-    res.json({ message: 'Login successful', user: responseUser });
->>>>>>> d7d803fd5535fb67d5197c219e1b9ad6edd7c60c
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed', details: err });
