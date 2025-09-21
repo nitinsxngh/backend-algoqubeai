@@ -51,8 +51,10 @@ async function getAllowedOrigins() {
     const staticOrigins = [
         'http://localhost:3000',
         'https://algoqube.com',
+        'https://ai.algoqube.com',
         'https://client-algoqubeai.vercel.app',
         'https://rococo-kashata-839276.netlify.app',
+        'https://polite-squirrel-5cbad7.netlify.app',
     ];
     // Add environment variable if it exists
     if (process.env.FRONTEND_URL) {
@@ -75,8 +77,11 @@ const dynamicCors = async (req, res, next) => {
         if (!origin) {
             return next();
         }
-        // Check if origin is in allowed list
-        if (allowedOrigins.includes(origin)) {
+        // Check if origin is in allowed list or is an algoqube.com subdomain
+        const isAllowedOrigin = allowedOrigins.includes(origin) ||
+            origin.endsWith('.algoqube.com') ||
+            origin === 'https://algoqube.com';
+        if (isAllowedOrigin) {
             res.header('Access-Control-Allow-Origin', origin);
             res.header('Access-Control-Allow-Credentials', 'true');
             res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -110,13 +115,30 @@ const refreshCorsCache = async () => {
 exports.refreshCorsCache = refreshCorsCache;
 // Export the original cors function for backward compatibility
 exports.staticCors = (0, cors_1.default)({
-    origin: [
-        'http://localhost:3000',
-        'https://algoqube.com',
-        'https://client-algoqubeai.vercel.app',
-        'https://rococo-kashata-839276.netlify.app',
-        process.env.FRONTEND_URL,
-        'null',
-    ].filter((origin) => Boolean(origin)),
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or Postman)
+        if (!origin)
+            return callback(null, true);
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'https://algoqube.com',
+            'https://ai.algoqube.com',
+            'https://client-algoqubeai.vercel.app',
+            'https://rococo-kashata-839276.netlify.app',
+            'https://polite-squirrel-5cbad7.netlify.app',
+            process.env.FRONTEND_URL,
+            'null',
+        ].filter((origin) => Boolean(origin));
+        // Check if origin is in allowed list or is an algoqube.com subdomain
+        const isAllowed = allowedOrigins.includes(origin) ||
+            origin.endsWith('.algoqube.com') ||
+            origin === 'https://algoqube.com';
+        if (isAllowed) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
 });

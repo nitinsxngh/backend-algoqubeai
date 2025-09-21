@@ -55,6 +55,7 @@ router.get('/chat-widget', async (req, res) => {
       display: flex;
       align-items: center;
       gap: 12px;
+      position: relative;
     }
 
     .bot-avatar {
@@ -70,6 +71,7 @@ router.get('/chat-widget', async (req, res) => {
 
     .header-info {
       flex: 1;
+      margin-right: 8px;
     }
 
     .bot-name {
@@ -90,6 +92,25 @@ router.get('/chat-widget', async (req, res) => {
       border-radius: 12px;
       font-size: 10px;
       font-weight: 500;
+      margin-right: 8px;
+    }
+
+    .close-button {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s;
+      flex-shrink: 0;
+    }
+
+    .close-button:hover {
+      background: rgba(255, 255, 255, 0.1);
     }
 
     .messages-container {
@@ -156,6 +177,32 @@ router.get('/chat-widget', async (req, res) => {
       line-height: 1.4;
       word-wrap: break-word;
       white-space: pre-wrap;
+    }
+
+    .message-bubble ul {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .message-bubble li {
+      margin: 4px 0;
+      line-height: 1.5;
+    }
+
+    .message-bubble strong {
+      font-weight: 600;
+    }
+
+    .message-bubble p {
+      margin: 8px 0;
+    }
+
+    .message-bubble p:first-child {
+      margin-top: 0;
+    }
+
+    .message-bubble p:last-child {
+      margin-bottom: 0;
     }
 
     .message.user .message-bubble {
@@ -454,21 +501,87 @@ router.get('/chat-widget', async (req, res) => {
       }
     }
 
-    @media (max-width: 480px) {
+    @media (max-width: 768px) {
+      body {
+        height: 100vh;
+        overflow: hidden;
+      }
+      
+      .chat-container {
+        height: 100vh;
+        border-radius: 0;
+      }
+      
       .message-content {
         max-width: 85%;
       }
       
+      .chat-header {
+        padding: 16px 20px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      
+      .close-button {
+        display: flex;
+      }
+      
+      .messages-container {
+        padding: 16px;
+        height: calc(100vh - 140px);
+        overflow-y: auto;
+      }
+      
+      .input-container {
+        padding: 16px 20px;
+        position: sticky;
+        bottom: 0;
+        background: #ffffff;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        z-index: 10;
+      }
+      
+      .message-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 14px 16px;
+      }
+      
+      .send-button {
+        width: 48px;
+        height: 48px;
+      }
+      
+      .lead-form-container {
+        max-width: 100%;
+        width: 100%;
+        height: 100vh;
+        border-radius: 0;
+        max-height: 100vh;
+      }
+      
+      .lead-form-content {
+        max-height: calc(100vh - 80px);
+        padding: 16px;
+      }
+    }
+    
+    @media (max-width: 480px) {
       .chat-header {
         padding: 12px 16px;
       }
       
       .messages-container {
         padding: 12px;
+        height: calc(100vh - 120px);
       }
       
       .input-container {
         padding: 12px 16px;
+      }
+      
+      .message-content {
+        max-width: 90%;
       }
     }
   </style>
@@ -489,6 +602,12 @@ router.get('/chat-widget', async (req, res) => {
         <div class="bot-subtitle">Powered by algoqube</div>
       </div>
       <div class="status-chip">Online</div>
+      <button class="close-button" id="closeButton">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     </div>
 
     <div class="messages-container" id="messages">
@@ -578,6 +697,7 @@ router.get('/chat-widget', async (req, res) => {
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
     const messages = document.getElementById('messages');
+    const closeButton = document.getElementById('closeButton');
     
     const leadFormOverlay = document.getElementById('leadFormOverlay');
     const leadForm = document.getElementById('leadForm');
@@ -588,6 +708,60 @@ router.get('/chat-widget', async (req, res) => {
     
     let pendingMessage = '';
     let isSubmittingLead = false;
+
+    function formatText(text) {
+      if (!text) return '';
+      
+      // Escape HTML to prevent XSS attacks
+      const escapeHtml = (unsafe) => {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
+      
+      // First escape the text
+      let formatted = escapeHtml(text);
+      
+      // Convert **text** to <strong>text</strong>
+      formatted = formatted.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+      
+      // Convert *text* to <em>text</em> (italic)
+      formatted = formatted.replace(/\\*(?!\\*)([^*]+)\\*(?!\\*)/g, '<em>$1</em>');
+      
+      // Convert line breaks to <br> tags
+      formatted = formatted.replace(/\\n/g, '<br>');
+      
+      // Convert bullet points to HTML list
+      // Split by double line breaks to handle paragraphs
+      const paragraphs = formatted.split('<br><br>');
+      const processedParagraphs = paragraphs.map(paragraph => {
+        // Check if paragraph contains bullet points
+        const lines = paragraph.split('<br>');
+        const hasBullets = lines.some(line => line.trim().startsWith('*'));
+        
+        if (hasBullets) {
+          const listItems = lines
+            .filter(line => line.trim().startsWith('*'))
+            .map(line => {
+              const content = line.trim().substring(1).trim(); // Remove the *
+              return \`<li>\${content}</li>\`;
+            })
+            .join('');
+          
+          const nonBulletLines = lines.filter(line => !line.trim().startsWith('*'));
+          const nonBulletText = nonBulletLines.join('<br>');
+          
+          return \`\${nonBulletText ? \`<p>\${nonBulletText}</p>\` : ''}<ul>\${listItems}</ul>\`;
+        } else {
+          return paragraph ? \`<p>\${paragraph}</p>\` : '';
+        }
+      });
+      
+      return processedParagraphs.join('');
+    }
 
     function checkForLeadKeywords(message) {
       const leadKeywords = ['contact', 'connect', 'reach out', 'get in touch', 'speak to', 'talk to', 'call me', 'email me'];
@@ -703,6 +877,15 @@ router.get('/chat-widget', async (req, res) => {
     sendButton.addEventListener('click', sendMessage);
     leadForm.addEventListener('submit', handleLeadFormSubmit);
     leadFormClose.addEventListener('click', hideLeadForm);
+    
+    // Close button functionality for mobile
+    closeButton.addEventListener('click', () => {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'CLOSE_CHAT'
+        }, '*');
+      }
+    });
 
     function sendMessage() {
       const message = messageInput.value.trim();
@@ -796,7 +979,7 @@ router.get('/chat-widget', async (req, res) => {
       
       const bubble = document.createElement('div');
       bubble.className = 'message-bubble';
-      bubble.textContent = text;
+      bubble.innerHTML = formatText(text);
       
       const time = document.createElement('div');
       time.className = 'message-time';

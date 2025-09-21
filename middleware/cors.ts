@@ -55,6 +55,7 @@ export async function getAllowedOrigins(): Promise<string[]> {
     'https://ai.algoqube.com',
     'https://client-algoqubeai.vercel.app',
     'https://rococo-kashata-839276.netlify.app',
+    'https://polite-squirrel-5cbad7.netlify.app',
   ];
   
   // Add environment variable if it exists
@@ -138,6 +139,7 @@ export const staticCors = cors({
       'https://ai.algoqube.com',
       'https://client-algoqubeai.vercel.app',
       'https://rococo-kashata-839276.netlify.app',
+      'https://polite-squirrel-5cbad7.netlify.app',
       process.env.FRONTEND_URL,
       'null',
     ].filter((origin): origin is string => Boolean(origin));
