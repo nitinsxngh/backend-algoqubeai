@@ -33,10 +33,15 @@ router.get('/chat-widget', async (req, res) => {
       box-sizing: border-box;
     }
 
+    :root {
+      --vh: 1vh;
+    }
+
     body {
       font-family: ${textFont};
       background: #ffffff;
       height: 100vh;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
       overflow: hidden;
     }
 
@@ -44,6 +49,7 @@ router.get('/chat-widget', async (req, res) => {
       display: flex;
       flex-direction: column;
       height: 100vh;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
       background: #ffffff;
       position: relative;
     }
@@ -504,11 +510,13 @@ router.get('/chat-widget', async (req, res) => {
     @media (max-width: 768px) {
       body {
         height: 100vh;
+        height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
         overflow: hidden;
       }
       
       .chat-container {
         height: 100vh;
+        height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
         border-radius: 0;
       }
       
@@ -530,6 +538,7 @@ router.get('/chat-widget', async (req, res) => {
       .messages-container {
         padding: 16px;
         height: calc(100vh - 140px);
+        height: calc(calc(var(--vh, 1vh) * 100) - 140px); /* Dynamic viewport height for mobile */
         overflow-y: auto;
       }
       
@@ -574,6 +583,7 @@ router.get('/chat-widget', async (req, res) => {
       .messages-container {
         padding: 12px;
         height: calc(100vh - 120px);
+        height: calc(calc(var(--vh, 1vh) * 100) - 120px); /* Dynamic viewport height for mobile */
       }
       
       .input-container {
@@ -698,6 +708,47 @@ router.get('/chat-widget', async (req, res) => {
     const sendButton = document.getElementById('sendButton');
     const messages = document.getElementById('messages');
     const closeButton = document.getElementById('closeButton');
+    
+    // Handle mobile keyboard viewport changes
+    function handleViewportChange() {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', vh + 'px');
+        
+        // Adjust chat container height
+        const chatContainer = document.querySelector('.chat-container');
+        if (chatContainer) {
+          chatContainer.style.height = window.innerHeight + 'px';
+        }
+        
+        // Adjust messages container height
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+          const headerHeight = document.querySelector('.chat-header').offsetHeight;
+          const inputHeight = document.querySelector('.input-container').offsetHeight;
+          messagesContainer.style.height = (window.innerHeight - headerHeight - inputHeight) + 'px';
+        }
+      }
+    }
+    
+    // Initial viewport setup
+    handleViewportChange();
+    
+    // Listen for viewport changes (keyboard open/close)
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(handleViewportChange, 100);
+    });
+    
+    // Handle input focus/blur for keyboard events
+    messageInput.addEventListener('focus', () => {
+      setTimeout(handleViewportChange, 300); // Delay to allow keyboard to open
+    });
+    
+    messageInput.addEventListener('blur', () => {
+      setTimeout(handleViewportChange, 300); // Delay to allow keyboard to close
+    });
     
     const leadFormOverlay = document.getElementById('leadFormOverlay');
     const leadForm = document.getElementById('leadForm');

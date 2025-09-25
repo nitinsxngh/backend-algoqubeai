@@ -45,9 +45,7 @@ async function getAllowedOrigins() {
     if (cachedDomains.length > 0 && (now - lastCacheUpdate) < CACHE_DURATION) {
         return cachedDomains;
     }
-    // Fetch fresh domains from database
-    const dbDomains = await fetchDomainUrls();
-    // Combine with static origins
+    // Static origins (always available)
     const staticOrigins = [
         'http://localhost:3000',
         'https://algoqube.com',
@@ -62,6 +60,18 @@ async function getAllowedOrigins() {
     }
     // Add null for local file testing
     staticOrigins.push('null');
+    // Try to fetch fresh domains from database
+    let dbDomains = [];
+    try {
+        dbDomains = await fetchDomainUrls();
+    }
+    catch (error) {
+        console.warn('Failed to fetch domain URLs from database, using static origins only:', error);
+        // If database fails, use only static origins
+        cachedDomains = [...new Set(staticOrigins)];
+        lastCacheUpdate = now;
+        return cachedDomains;
+    }
     // Update cache
     cachedDomains = [...new Set([...staticOrigins, ...dbDomains])];
     lastCacheUpdate = now;
@@ -71,17 +81,26 @@ async function getAllowedOrigins() {
 // Dynamic CORS middleware
 const dynamicCors = async (req, res, next) => {
     try {
-        const allowedOrigins = await getAllowedOrigins();
         const origin = req.headers.origin;
         // Allow requests with no origin (like mobile apps or Postman)
         if (!origin) {
             return next();
         }
-        // Check if origin is in allowed list or is an algoqube.com subdomain
-        const isAllowedOrigin = allowedOrigins.includes(origin) ||
+        // First check static origins (fast check)
+        const staticOrigins = [
+            'http://localhost:3000',
+            'https://algoqube.com',
+            'https://ai.algoqube.com',
+            'https://client-algoqubeai.vercel.app',
+            'https://rococo-kashata-839276.netlify.app',
+            'https://polite-squirrel-5cbad7.netlify.app',
+            process.env.FRONTEND_URL,
+            'null',
+        ].filter((origin) => Boolean(origin));
+        const isStaticAllowed = staticOrigins.includes(origin) ||
             origin.endsWith('.algoqube.com') ||
             origin === 'https://algoqube.com';
-        if (isAllowedOrigin) {
+        if (isStaticAllowed) {
             res.header('Access-Control-Allow-Origin', origin);
             res.header('Access-Control-Allow-Credentials', 'true');
             res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -92,6 +111,43 @@ const dynamicCors = async (req, res, next) => {
                 return;
             }
             return next();
+        }
+        // If not in static origins, try to get dynamic origins from database
+        try {
+            const allowedOrigins = await getAllowedOrigins();
+            // Check if origin matches any database domain (with flexible matching)
+            const isDynamicAllowed = allowedOrigins.some(allowedOrigin => {
+                // Skip static origins (they don't start with http/https or are localhost)
+                if (!allowedOrigin.startsWith('http://') && !allowedOrigin.startsWith('https://')) {
+                    return false;
+                }
+                // Normalize both URLs for comparison
+                const normalizeUrl = (url) => {
+                    // Remove trailing slash and protocol for comparison
+                    return url.replace(/\/$/, '').replace(/^https?:\/\//, '');
+                };
+                const normalizedOrigin = normalizeUrl(origin);
+                const normalizedAllowed = normalizeUrl(allowedOrigin);
+                // Check if the domain matches (with or without www)
+                return normalizedOrigin === normalizedAllowed ||
+                    normalizedOrigin === `www.${normalizedAllowed}` ||
+                    `www.${normalizedOrigin}` === normalizedAllowed;
+            });
+            if (isDynamicAllowed) {
+                res.header('Access-Control-Allow-Origin', origin);
+                res.header('Access-Control-Allow-Credentials', 'true');
+                res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+                res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+                // Handle preflight requests
+                if (req.method === 'OPTIONS') {
+                    res.sendStatus(200);
+                    return;
+                }
+                return next();
+            }
+        }
+        catch (dbError) {
+            console.warn('Database error in CORS middleware, falling back to static origins only:', dbError);
         }
         // Origin not allowed
         console.warn(`CORS blocked origin: ${origin}`);
