@@ -81,6 +81,18 @@ router.get('/embed.js', (req, res) => {
               overflow: hidden !important;
             }
             
+            /* Override the specific conflicting CSS rule */
+            iframe.algoqube-chatbot-iframe[style*="width"] {
+              width: 350px !important;
+            }
+            
+            /* Additional protection against width: 100% !important */
+            iframe[class*="algoqube-chatbot-iframe"] {
+              width: 350px !important;
+              max-width: 350px !important;
+              min-width: 350px !important;
+            }
+            
             /* Additional protection against common CSS resets */
             iframe.algoqube-chatbot-iframe {
               width: 350px !important;
@@ -99,6 +111,29 @@ router.get('/embed.js', (req, res) => {
               max-height: 500px !important;
               min-width: 350px !important;
               min-height: 500px !important;
+            }
+            
+            /* Specific override for the conflicting iframe rule */
+            iframe.algoqube-chatbot-iframe {
+              width: 350px !important;
+              max-width: 350px !important;
+              min-width: 350px !important;
+            }
+            
+            /* Override any iframe width: 100% !important rules */
+            iframe[class*="algoqube"] {
+              width: 350px !important;
+              max-width: 350px !important;
+              min-width: 350px !important;
+            }
+            
+            /* Most specific selector to override website's iframe rule */
+            body iframe.algoqube-chatbot-iframe,
+            html iframe.algoqube-chatbot-iframe,
+            * iframe.algoqube-chatbot-iframe {
+              width: 350px !important;
+              max-width: 350px !important;
+              min-width: 350px !important;
             }
             
             /* Mobile responsive behavior */
@@ -139,6 +174,12 @@ router.get('/embed.js', (req, res) => {
           // Function to enforce iframe dimensions
           function enforceIframeDimensions() {
             if (iframe && iframe.style) {
+              // Remove any existing width styles first
+              iframe.style.removeProperty('width');
+              iframe.style.removeProperty('max-width');
+              iframe.style.removeProperty('min-width');
+              
+              // Set our dimensions with maximum specificity
               iframe.style.setProperty('width', '350px', 'important');
               iframe.style.setProperty('height', '500px', 'important');
               iframe.style.setProperty('max-width', '350px', 'important');
@@ -149,6 +190,9 @@ router.get('/embed.js', (req, res) => {
               // Also set the iframe attributes as backup
               iframe.setAttribute('width', '350');
               iframe.setAttribute('height', '500');
+              
+              // Force a reflow to ensure styles are applied
+              iframe.offsetHeight;
             }
           }
           
@@ -170,6 +214,16 @@ router.get('/embed.js', (req, res) => {
           enforceIframeDimensions();
           setInterval(enforceIframeDimensions, 1000);
           setInterval(checkIframeDimensions, 500);
+          
+          // More frequent check specifically for width issues
+          setInterval(() => {
+            if (iframe) {
+              const computedStyle = window.getComputedStyle(iframe);
+              if (computedStyle.width !== '350px') {
+                enforceIframeDimensions();
+              }
+            }
+          }, 200);
 
           // Also enforce on window resize
           window.addEventListener('resize', enforceIframeDimensions);
