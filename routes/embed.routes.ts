@@ -34,32 +34,71 @@ router.get('/embed.js', (req, res) => {
           const themeColor = config.themeColor || '#000000';
           const displayName = config.displayName || 'Chatbot';
 
+          // Create a Shadow DOM container for complete isolation
+          const shadowHost = document.createElement('div');
+          shadowHost.style.position = 'fixed';
+          shadowHost.style.bottom = '20px';
+          shadowHost.style.right = '20px';
+          shadowHost.style.width = '350px';
+          shadowHost.style.height = '500px';
+          shadowHost.style.zIndex = '99999';
+          shadowHost.style.pointerEvents = 'none';
+          
+          // Create shadow root for complete CSS isolation
+          const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+          
+          // Create iframe inside shadow DOM
           const iframe = document.createElement('iframe');
           iframe.src = "${FRONTEND_URL}/chat-widget?" +
             "name=" + encodeURIComponent(chatbox.name) +
             "&themeColor=" + encodeURIComponent(themeColor) +
             "&displayName=" + encodeURIComponent(displayName);
 
-          iframe.style.position = 'fixed';
-          iframe.style.bottom = '20px';
-          iframe.style.right = '20px';
-          iframe.style.width = '350px';
-          iframe.style.height = '500px';
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
           iframe.style.border = 'none';
           iframe.style.borderRadius = '12px';
           iframe.style.boxShadow = '0 0 15px rgba(0,0,0,0.2)';
-          iframe.style.zIndex = '99999';
+          iframe.style.pointerEvents = 'auto';
           
-          // Add CSS to prevent website styles from overriding iframe dimensions
-          iframe.style.setProperty('width', '350px', 'important');
-          iframe.style.setProperty('height', '500px', 'important');
-          iframe.style.setProperty('max-width', '350px', 'important');
-          iframe.style.setProperty('max-height', '500px', 'important');
-          iframe.style.setProperty('min-width', '350px', 'important');
-          iframe.style.setProperty('min-height', '500px', 'important');
+          // Add iframe to shadow DOM
+          shadowRoot.appendChild(iframe);
           
-          // Add CSS class to iframe for additional protection
-          iframe.className = 'algoqube-chatbot-iframe';
+          // Add CSS to shadow DOM for complete isolation
+          const shadowStyle = document.createElement('style');
+          shadowStyle.textContent = \`
+            :host {
+              position: fixed !important;
+              bottom: 20px !important;
+              right: 20px !important;
+              width: 350px !important;
+              height: 500px !important;
+              z-index: 99999 !important;
+              pointer-events: none !important;
+            }
+            
+            iframe {
+              width: 100% !important;
+              height: 100% !important;
+              border: none !important;
+              border-radius: 12px !important;
+              box-shadow: 0 0 15px rgba(0,0,0,0.2) !important;
+              pointer-events: auto !important;
+            }
+            
+            @media (max-width: 768px) {
+              :host {
+                width: 100vw !important;
+                height: 100vh !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                border-radius: 0 !important;
+              }
+            }
+          \`;
+          shadowRoot.appendChild(shadowStyle);
           
           // Inject CSS to override any conflicting website styles
           const style = document.createElement('style');
@@ -171,67 +210,58 @@ router.get('/embed.js', (req, res) => {
           \`;
           document.head.appendChild(style);
 
-          // Function to enforce iframe dimensions
-          function enforceIframeDimensions() {
-            if (iframe && iframe.style) {
-              // Remove any existing width styles first
-              iframe.style.removeProperty('width');
-              iframe.style.removeProperty('max-width');
-              iframe.style.removeProperty('min-width');
-              
-              // Set our dimensions with maximum specificity
-              iframe.style.setProperty('width', '350px', 'important');
-              iframe.style.setProperty('height', '500px', 'important');
-              iframe.style.setProperty('max-width', '350px', 'important');
-              iframe.style.setProperty('max-height', '500px', 'important');
-              iframe.style.setProperty('min-width', '350px', 'important');
-              iframe.style.setProperty('min-height', '500px', 'important');
-              
-              // Also set the iframe attributes as backup
-              iframe.setAttribute('width', '350');
-              iframe.setAttribute('height', '500');
+          // Function to enforce shadow host dimensions
+          function enforceShadowDimensions() {
+            if (shadowHost && shadowHost.style) {
+              // Enforce shadow host dimensions
+              shadowHost.style.setProperty('width', '350px', 'important');
+              shadowHost.style.setProperty('height', '500px', 'important');
+              shadowHost.style.setProperty('max-width', '350px', 'important');
+              shadowHost.style.setProperty('max-height', '500px', 'important');
+              shadowHost.style.setProperty('min-width', '350px', 'important');
+              shadowHost.style.setProperty('min-height', '500px', 'important');
               
               // Force a reflow to ensure styles are applied
-              iframe.offsetHeight;
+              shadowHost.offsetHeight;
             }
           }
           
-          // Function to check and fix iframe dimensions
-          function checkIframeDimensions() {
-            if (iframe) {
-              const computedStyle = window.getComputedStyle(iframe);
+          // Function to check and fix shadow host dimensions
+          function checkShadowDimensions() {
+            if (shadowHost) {
+              const computedStyle = window.getComputedStyle(shadowHost);
               const currentWidth = computedStyle.width;
               const currentHeight = computedStyle.height;
               
               // If width is not 350px, enforce it
               if (currentWidth !== '350px') {
-                enforceIframeDimensions();
+                enforceShadowDimensions();
               }
             }
           }
 
           // Enforce dimensions immediately and periodically
-          enforceIframeDimensions();
-          setInterval(enforceIframeDimensions, 1000);
-          setInterval(checkIframeDimensions, 500);
+          enforceShadowDimensions();
+          setInterval(enforceShadowDimensions, 1000);
+          setInterval(checkShadowDimensions, 500);
           
           // More frequent check specifically for width issues
           setInterval(() => {
-            if (iframe) {
-              const computedStyle = window.getComputedStyle(iframe);
+            if (shadowHost) {
+              const computedStyle = window.getComputedStyle(shadowHost);
               if (computedStyle.width !== '350px') {
-                enforceIframeDimensions();
+                enforceShadowDimensions();
               }
             }
           }, 200);
 
           // Also enforce on window resize
-          window.addEventListener('resize', enforceIframeDimensions);
+          window.addEventListener('resize', enforceShadowDimensions);
           
           // Listen for messages from the iframe to enforce dimensions
           window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'ENFORCE_IFRAME_DIMENSIONS') {
-              enforceIframeDimensions();
+              enforceShadowDimensions();
             }
           });
           
@@ -241,21 +271,21 @@ router.get('/embed.js', (req, res) => {
               mutations.forEach(function(mutation) {
                 if (mutation.type === 'attributes' && 
                     (mutation.attributeName === 'style' || mutation.attributeName === 'width' || mutation.attributeName === 'height')) {
-                  setTimeout(enforceIframeDimensions, 10);
+                  setTimeout(enforceShadowDimensions, 10);
                 }
               });
             });
             
-            // Start observing the iframe for attribute changes
+            // Start observing the shadow host for attribute changes
             iframe.addEventListener('load', function() {
-              observer.observe(iframe, {
+              observer.observe(shadowHost, {
                 attributes: true,
                 attributeFilter: ['style', 'width', 'height']
               });
             });
           }
 
-          document.body.appendChild(iframe);
+          document.body.appendChild(shadowHost);
         })
         .catch(err => {
           console.error('[Chatbot Embed] Failed to load chatbot:', err);

@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import userRoutes from './routes/user.routes';
 import chatboxRoutes from './routes/chatbox.routes';
 import embedRoutes from './routes/embed.routes';
+import embedWebComponentRoutes from './routes/embed-webcomponent.routes';
+import embedPopupRoutes from './routes/embed-popup.routes';
 import chatWidgetRoutes from './routes/chat-widget.routes';
 import scrapeRoutes from './routes/scrape.routes';
 import analyticsRoutes from './routes/analytics.routes';
@@ -93,6 +95,8 @@ app.use('/api/admin', adminRoutes);
 
 // Static Embed Scripts
 app.use(embedRoutes);
+app.use(embedWebComponentRoutes);
+app.use(embedPopupRoutes);
 app.use(chatWidgetRoutes);
 
 // 404 handler
