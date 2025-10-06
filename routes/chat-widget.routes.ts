@@ -35,72 +35,20 @@ router.get('/chat-widget', async (req, res) => {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* CSS Scoping to prevent class conflicts with parent website */
-    .algoqube-chat-widget {
-      all: initial !important;
-      font-family: ${textFont} !important;
-      display: block !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      height: 100vh !important;
-      overflow: hidden !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      box-sizing: border-box !important;
-      position: relative !important;
-      isolation: isolate !important;
-      contain: layout style paint !important;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-
-    .algoqube-chat-widget *,
-    .algoqube-chat-widget *::before,
-    .algoqube-chat-widget *::after {
-      margin: 0 !important;
-      padding: 0 !important;
-      box-sizing: border-box !important;
-      border: none !important;
-      outline: none !important;
-      text-decoration: none !important;
-      list-style: none !important;
-      quotes: none !important;
-      font-family: inherit !important;
-    }
-
+    
     html {
-      width: 100% !important;
-      max-width: 100% !important;
-      overflow: hidden !important;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
     }
 
     :root {
       --vh: 1vh;
-    }
-
-    /* Ensure iframe content respects container bounds */
-    iframe {
-      width: 100% !important;
-      max-width: 100% !important;
-      height: 100% !important;
-      max-height: 100% !important;
-      border: none !important;
-      overflow: hidden !important;
-    }
-
-    /* Additional isolation to prevent parent website interference */
-    .algoqube-chat-widget {
-      /* Reset any inherited properties that might cause conflicts */
-      font-size: 14px !important;
-      line-height: 1.4 !important;
-      color: #333 !important;
-      background-color: #ffffff !important;
-      text-align: left !important;
-      direction: ltr !important;
-      unicode-bidi: normal !important;
-      writing-mode: horizontal-tb !important;
-      text-orientation: mixed !important;
-      text-rendering: auto !important;
-      -webkit-font-smoothing: antialiased !important;
-      -moz-osx-font-smoothing: grayscale !important;
     }
 
     body {
@@ -108,41 +56,42 @@ router.get('/chat-widget', async (req, res) => {
       background: #ffffff;
       height: 100vh;
       height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
-      overflow: hidden !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
+      overflow: hidden;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
     }
 
-    .algoqube-chat-container {
-      display: flex !important;
-      flex-direction: column !important;
-      height: 100vh !important;
-      height: calc(var(--vh, 1vh) * 100) !important; /* Dynamic viewport height for mobile */
-      background: #ffffff !important;
-      position: relative !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      box-sizing: border-box !important;
-      overflow: hidden !important;
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
+      background: #ffffff;
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
+    
+    .chat-container * {
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
-    .algoqube-chat-widget .chat-header {
-      padding: 16px 20px !important;
-      background: ${themeColor} !important;
-      color: #ffffff !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 12px !important;
-      position: relative !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      box-sizing: border-box !important;
-      flex-shrink: 0 !important;
+    .chat-header {
+      padding: 16px 20px;
+      background: ${themeColor};
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
     }
 
-    .algoqube-chat-widget .bot-avatar {
+    .bot-avatar {
       width: 32px;
       height: 32px;
       background: rgba(255, 255, 255, 0.2);
@@ -153,23 +102,23 @@ router.get('/chat-widget', async (req, res) => {
       font-size: 16px;
     }
 
-    .algoqube-chat-widget .header-info {
+    .header-info {
       flex: 1;
       margin-right: 8px;
     }
 
-    .algoqube-chat-widget .bot-name {
+    .bot-name {
       font-size: 14px;
       font-weight: 600;
       margin-bottom: 2px;
     }
 
-    .algoqube-chat-widget .bot-subtitle {
+    .bot-subtitle {
       font-size: 11px;
       opacity: 0.8;
     }
 
-    .algoqube-chat-widget .status-chip {
+    .status-chip {
       background: rgba(255, 255, 255, 0.2);
       color: white;
       padding: 4px 8px;
@@ -179,7 +128,7 @@ router.get('/chat-widget', async (req, res) => {
       margin-right: 8px;
     }
 
-    .algoqube-chat-widget .close-button {
+    .close-button {
       background: none;
       border: none;
       color: white;
@@ -197,15 +146,11 @@ router.get('/chat-widget', async (req, res) => {
       background: rgba(255, 255, 255, 0.1);
     }
 
-    .algoqube-chat-widget .messages-container {
+    .messages-container {
       flex: 1;
       padding: 16px;
       overflow-y: auto;
       background: #fafafa;
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-      min-width: 0;
     }
 
     .messages-container::-webkit-scrollbar {
@@ -221,7 +166,7 @@ router.get('/chat-widget', async (req, res) => {
       border-radius: 3px;
     }
 
-    .algoqube-chat-widget .message {
+    .message {
       margin-bottom: 16px;
       display: flex;
       align-items: flex-start;
@@ -232,7 +177,7 @@ router.get('/chat-widget', async (req, res) => {
       justify-content: flex-end;
     }
 
-    .algoqube-chat-widget .message-avatar {
+    .message-avatar {
       width: 32px;
       height: 32px;
       border-radius: 50%;
@@ -253,12 +198,12 @@ router.get('/chat-widget', async (req, res) => {
       color: white;
     }
 
-    .algoqube-chat-widget .message-content {
+    .message-content {
       max-width: 70%;
       position: relative;
     }
 
-    .algoqube-chat-widget .message-bubble {
+    .message-bubble {
       padding: 12px 16px;
       border-radius: 18px;
       font-size: 14px;
@@ -321,66 +266,38 @@ router.get('/chat-widget', async (req, res) => {
       text-align: left;
     }
 
-    .algoqube-chat-widget .input-container {
+    .input-container {
       padding: 16px 20px;
       background: #ffffff;
       border-top: 1px solid rgba(0, 0, 0, 0.08);
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-      flex-shrink: 0;
     }
 
-    .algoqube-chat-widget .input-wrapper {
-      display: flex !important;
-      align-items: flex-end !important;
-      gap: 8px !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
+    .input-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
     }
 
-    .algoqube-chat-widget .message-input {
-      flex: 1 !important;
-      padding: 12px 16px !important;
-      border: none !important;
-      border-radius: 24px !important;
-      background: #f8f9fa !important;
-      font-family: ${textFont} !important;
-      font-size: 14px !important;
-      resize: none !important;
-      outline: none !important;
-      max-height: 120px !important;
-      min-height: 44px !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
-      text-align: left !important;
-      line-height: 1.4 !important;
-      vertical-align: top !important;
-      text-indent: 0 !important;
-      text-overflow: ellipsis !important;
-      white-space: pre-wrap !important;
-      word-wrap: break-word !important;
-      overflow-wrap: break-word !important;
+    .message-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 24px;
+      background: #f8f9fa;
+      font-family: ${textFont};
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      max-height: 120px;
+      min-height: 44px;
     }
 
-    .algoqube-chat-widget .message-input:focus {
-      background: #ffffff !important;
-      box-shadow: 0 0 0 2px ${themeColor}20 !important;
-      outline: none !important;
+    .message-input:focus {
+      background: #ffffff;
+      box-shadow: 0 0 0 2px ${themeColor}20;
     }
 
-    .algoqube-chat-widget .message-input::placeholder {
-      color: #999 !important;
-      opacity: 1 !important;
-      text-align: left !important;
-      padding-left: 0 !important;
-      margin-left: 0 !important;
-      white-space: nowrap !important;
-      overflow: visible !important;
-    }
-
-
-    .algoqube-chat-widget .send-button {
+    .send-button {
       width: 44px;
       height: 44px;
       border: none;
@@ -411,7 +328,7 @@ router.get('/chat-widget', async (req, res) => {
       margin-top: 8px;
     }
 
-    .algoqube-chat-widget .lead-form-overlay {
+    .lead-form-overlay {
       position: absolute;
       top: 0;
       left: 0;
@@ -572,7 +489,7 @@ router.get('/chat-widget', async (req, res) => {
       }
     }
 
-    .algoqube-chat-widget .typing-indicator {
+    .typing-indicator {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -630,7 +547,7 @@ router.get('/chat-widget', async (req, res) => {
         border-radius: 0;
       }
       
-      .algoqube-chat-widget .message-content {
+      .message-content {
         max-width: 85%;
       }
       
@@ -641,18 +558,18 @@ router.get('/chat-widget', async (req, res) => {
         z-index: 10;
       }
       
-      .algoqube-chat-widget .close-button {
+      .close-button {
         display: flex;
       }
       
-      .algoqube-chat-widget .messages-container {
+      .messages-container {
         padding: 16px;
         height: calc(100vh - 140px);
         height: calc(calc(var(--vh, 1vh) * 100) - 140px); /* Dynamic viewport height for mobile */
         overflow-y: auto;
       }
       
-      .algoqube-chat-widget .input-container {
+      .input-container {
         padding: 16px 20px;
         position: sticky;
         bottom: 0;
@@ -661,14 +578,12 @@ router.get('/chat-widget', async (req, res) => {
         z-index: 10;
       }
       
-      .algoqube-chat-widget .message-input {
-        font-size: 16px !important; /* Prevents zoom on iOS */
-        padding: 14px 16px !important;
-        text-align: left !important;
-        text-indent: 0 !important;
+      .message-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 14px 16px;
       }
       
-      .algoqube-chat-widget .send-button {
+      .send-button {
         width: 48px;
         height: 48px;
       }
@@ -692,25 +607,24 @@ router.get('/chat-widget', async (req, res) => {
         padding: 12px 16px;
       }
       
-      .algoqube-chat-widget .messages-container {
+      .messages-container {
         padding: 12px;
         height: calc(100vh - 120px);
         height: calc(calc(var(--vh, 1vh) * 100) - 120px); /* Dynamic viewport height for mobile */
       }
       
-      .algoqube-chat-widget .input-container {
+      .input-container {
         padding: 12px 16px;
       }
       
-      .algoqube-chat-widget .message-content {
+      .message-content {
         max-width: 90%;
       }
     }
   </style>
 </head>
 <body>
-  <div class="algoqube-chat-widget">
-    <div class="algoqube-chat-container">
+  <div class="chat-container">
     <div class="chat-header">
       <div class="bot-avatar">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -813,7 +727,6 @@ router.get('/chat-widget', async (req, res) => {
           </form>
         </div>
       </div>
-    </div>
     </div>
   </div>
 
@@ -1203,6 +1116,25 @@ router.get('/chat-widget', async (req, res) => {
     }
 
     messageInput.focus();
+    
+    // Enforce iframe dimensions from within the iframe
+    function enforceIframeDimensions() {
+      if (window.parent && window.parent !== window) {
+        // Send message to parent to enforce iframe dimensions
+        window.parent.postMessage({
+          type: 'ENFORCE_IFRAME_DIMENSIONS',
+          width: '350px',
+          height: '500px'
+        }, '*');
+      }
+    }
+    
+    // Enforce dimensions on load and periodically
+    enforceIframeDimensions();
+    setInterval(enforceIframeDimensions, 2000);
+    
+    // Also enforce on window resize
+    window.addEventListener('resize', enforceIframeDimensions);
   </script>
 </body>
 </html>`;

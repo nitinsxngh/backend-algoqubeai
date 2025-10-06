@@ -49,6 +49,157 @@ router.get('/embed.js', (req, res) => {
           iframe.style.borderRadius = '12px';
           iframe.style.boxShadow = '0 0 15px rgba(0,0,0,0.2)';
           iframe.style.zIndex = '99999';
+          
+          // Add CSS to prevent website styles from overriding iframe dimensions
+          iframe.style.setProperty('width', '350px', 'important');
+          iframe.style.setProperty('height', '500px', 'important');
+          iframe.style.setProperty('max-width', '350px', 'important');
+          iframe.style.setProperty('max-height', '500px', 'important');
+          iframe.style.setProperty('min-width', '350px', 'important');
+          iframe.style.setProperty('min-height', '500px', 'important');
+          
+          // Add CSS class to iframe for additional protection
+          iframe.className = 'algoqube-chatbot-iframe';
+          
+          // Inject CSS to override any conflicting website styles
+          const style = document.createElement('style');
+          style.textContent = \`
+            .algoqube-chatbot-iframe {
+              width: 350px !important;
+              height: 500px !important;
+              max-width: 350px !important;
+              max-height: 500px !important;
+              min-width: 350px !important;
+              min-height: 500px !important;
+              position: fixed !important;
+              bottom: 20px !important;
+              right: 20px !important;
+              border: none !important;
+              border-radius: 12px !important;
+              box-shadow: 0 0 15px rgba(0,0,0,0.2) !important;
+              z-index: 99999 !important;
+              overflow: hidden !important;
+            }
+            
+            /* Additional protection against common CSS resets */
+            iframe.algoqube-chatbot-iframe {
+              width: 350px !important;
+              height: 500px !important;
+              max-width: 350px !important;
+              max-height: 500px !important;
+              min-width: 350px !important;
+              min-height: 500px !important;
+            }
+            
+            /* Prevent any parent container from affecting the iframe */
+            * .algoqube-chatbot-iframe {
+              width: 350px !important;
+              height: 500px !important;
+              max-width: 350px !important;
+              max-height: 500px !important;
+              min-width: 350px !important;
+              min-height: 500px !important;
+            }
+            
+            /* Mobile responsive behavior */
+            @media (max-width: 768px) {
+              .algoqube-chatbot-iframe {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: 100vw !important;
+                max-height: 100vh !important;
+                min-width: 100vw !important;
+                min-height: 100vh !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                border-radius: 0 !important;
+              }
+            }
+            
+            @media (max-width: 480px) {
+              .algoqube-chatbot-iframe {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: 100vw !important;
+                max-height: 100vh !important;
+                min-width: 100vw !important;
+                min-height: 100vh !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                border-radius: 0 !important;
+              }
+            }
+          \`;
+          document.head.appendChild(style);
+
+          // Function to enforce iframe dimensions
+          function enforceIframeDimensions() {
+            if (iframe && iframe.style) {
+              iframe.style.setProperty('width', '350px', 'important');
+              iframe.style.setProperty('height', '500px', 'important');
+              iframe.style.setProperty('max-width', '350px', 'important');
+              iframe.style.setProperty('max-height', '500px', 'important');
+              iframe.style.setProperty('min-width', '350px', 'important');
+              iframe.style.setProperty('min-height', '500px', 'important');
+              
+              // Also set the iframe attributes as backup
+              iframe.setAttribute('width', '350');
+              iframe.setAttribute('height', '500');
+            }
+          }
+          
+          // Function to check and fix iframe dimensions
+          function checkIframeDimensions() {
+            if (iframe) {
+              const computedStyle = window.getComputedStyle(iframe);
+              const currentWidth = computedStyle.width;
+              const currentHeight = computedStyle.height;
+              
+              // If width is not 350px, enforce it
+              if (currentWidth !== '350px') {
+                enforceIframeDimensions();
+              }
+            }
+          }
+
+          // Enforce dimensions immediately and periodically
+          enforceIframeDimensions();
+          setInterval(enforceIframeDimensions, 1000);
+          setInterval(checkIframeDimensions, 500);
+
+          // Also enforce on window resize
+          window.addEventListener('resize', enforceIframeDimensions);
+          
+          // Listen for messages from the iframe to enforce dimensions
+          window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'ENFORCE_IFRAME_DIMENSIONS') {
+              enforceIframeDimensions();
+            }
+          });
+          
+          // Use MutationObserver to detect style changes
+          if (window.MutationObserver) {
+            const observer = new MutationObserver(function(mutations) {
+              mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && 
+                    (mutation.attributeName === 'style' || mutation.attributeName === 'width' || mutation.attributeName === 'height')) {
+                  setTimeout(enforceIframeDimensions, 10);
+                }
+              });
+            });
+            
+            // Start observing the iframe for attribute changes
+            iframe.addEventListener('load', function() {
+              observer.observe(iframe, {
+                attributes: true,
+                attributeFilter: ['style', 'width', 'height']
+              });
+            });
+          }
 
           document.body.appendChild(iframe);
         })
