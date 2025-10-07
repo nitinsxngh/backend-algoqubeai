@@ -9,6 +9,8 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const chatbox_routes_1 = __importDefault(require("./routes/chatbox.routes"));
 const embed_routes_1 = __importDefault(require("./routes/embed.routes"));
+const embed_webcomponent_routes_1 = __importDefault(require("./routes/embed-webcomponent.routes"));
+const embed_popup_routes_1 = __importDefault(require("./routes/embed-popup.routes"));
 const chat_widget_routes_1 = __importDefault(require("./routes/chat-widget.routes"));
 const scrape_routes_1 = __importDefault(require("./routes/scrape.routes"));
 const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"));
@@ -83,6 +85,8 @@ app.use('/api/analytics', analytics_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
 // Static Embed Scripts
 app.use(embed_routes_1.default);
+app.use(embed_webcomponent_routes_1.default);
+app.use(embed_popup_routes_1.default);
 app.use(chat_widget_routes_1.default);
 // 404 handler
 app.use('*', (req, res) => {

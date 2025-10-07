@@ -32,6 +32,12 @@ router.get('/chat-widget', async (req, res) => {
       padding: 0;
       box-sizing: border-box;
     }
+    
+    html {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
 
     :root {
       --vh: 1vh;
@@ -43,15 +49,34 @@ router.get('/chat-widget', async (req, res) => {
       height: 100vh;
       height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
       overflow: hidden;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
     }
 
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
+      height: 500px;
       background: #ffffff;
       position: relative;
+      width: 350px;
+      max-width: 350px;
+      min-width: 350px;
+      box-sizing: border-box;
+      overflow-x: hidden;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      margin: 20px;
+    }
+    
+    .chat-container * {
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .chat-header {
@@ -507,17 +532,46 @@ router.get('/chat-widget', async (req, res) => {
       }
     }
 
+    /* Handle when iframe is forced to be very wide */
+    @media (min-width: 1000px) {
+      .chat-container {
+        width: 350px;
+        max-width: 350px;
+        min-width: 350px;
+        height: 500px;
+        margin: 20px auto;
+      }
+    }
+    
+    /* Handle when iframe is forced to be wide but not full screen */
+    @media (min-width: 500px) and (max-width: 999px) {
+      .chat-container {
+        width: 350px;
+        max-width: 350px;
+        min-width: 350px;
+        height: 500px;
+        margin: 20px;
+      }
+    }
+    
     @media (max-width: 768px) {
       body {
         height: 100vh;
         height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
         overflow: hidden;
+        align-items: stretch;
+        justify-content: stretch;
       }
       
       .chat-container {
         height: 100vh;
         height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
+        width: 100%;
+        max-width: 100%;
+        min-width: 100%;
         border-radius: 0;
+        margin: 0;
+        box-shadow: none;
       }
       
       .message-content {
@@ -1089,6 +1143,62 @@ router.get('/chat-widget', async (req, res) => {
     }
 
     messageInput.focus();
+    
+    // Handle iframe width issues by adjusting container
+    function handleIframeWidth() {
+      const container = document.querySelector('.chat-container');
+      if (container) {
+        const iframeWidth = window.innerWidth;
+        
+        if (iframeWidth > 1000) {
+          // If iframe is very wide, center the chat container
+          container.style.width = '350px';
+          container.style.maxWidth = '350px';
+          container.style.minWidth = '350px';
+          container.style.height = '500px';
+          container.style.margin = '20px auto';
+        } else if (iframeWidth > 500) {
+          // If iframe is moderately wide, keep fixed size
+          container.style.width = '350px';
+          container.style.maxWidth = '350px';
+          container.style.minWidth = '350px';
+          container.style.height = '500px';
+          container.style.margin = '20px';
+        } else {
+          // If iframe is narrow (mobile), use full width
+          container.style.width = '100%';
+          container.style.maxWidth = '100%';
+          container.style.minWidth = '100%';
+          container.style.height = '100vh';
+          container.style.margin = '0';
+          container.style.borderRadius = '0';
+          container.style.boxShadow = 'none';
+        }
+      }
+    }
+    
+    // Handle width on load and resize
+    handleIframeWidth();
+    window.addEventListener('resize', handleIframeWidth);
+    
+    // Enforce iframe dimensions from within the iframe
+    function enforceIframeDimensions() {
+      if (window.parent && window.parent !== window) {
+        // Send message to parent to enforce iframe dimensions
+        window.parent.postMessage({
+          type: 'ENFORCE_IFRAME_DIMENSIONS',
+          width: '350px',
+          height: '500px'
+        }, '*');
+      }
+    }
+    
+    // Enforce dimensions on load and periodically
+    enforceIframeDimensions();
+    setInterval(enforceIframeDimensions, 2000);
+    
+    // Also enforce on window resize
+    window.addEventListener('resize', enforceIframeDimensions);
   </script>
 </body>
 </html>`;

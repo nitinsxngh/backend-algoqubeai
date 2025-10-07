@@ -8,7 +8,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Simple in-memory rate limiting for auth attempts
 const authAttempts = new Map();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_AUTH_ATTEMPTS = 5;
+const MAX_AUTH_ATTEMPTS = 20; // Increased from 5 to 20
 const authenticate = (req, res, next) => {
     try {
         // Rate limiting for auth attempts
