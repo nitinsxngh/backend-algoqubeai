@@ -679,7 +679,7 @@ router.get('/chat-widget', async (req, res) => {
       .input-container {
         padding: 12px 16px;
         padding-bottom: calc(12px + var(--safe-area-inset-bottom));
-        padding-bottom: 12px; /* Remove extra padding for Android navigation bar */
+        padding-bottom: calc(12px + 20px); /* Extra padding for Android navigation bar */
       }
       
       .message-content {
@@ -690,12 +690,12 @@ router.get('/chat-widget', async (req, res) => {
     /* Android-specific styles */
     @media screen and (max-width: 768px) and (orientation: portrait) {
       .chat-container {
-        height: calc(100vh - 5px) !important; /* Minimal space for Android navigation bar */
-        max-height: calc(100vh - 5px) !important;
+        height: calc(100vh - 20px) !important; /* Reserve space for Android navigation bar */
+        max-height: calc(100vh - 20px) !important;
       }
       
       .input-container {
-        padding-bottom: 16px !important; /* Remove extra padding for Android navigation bar */
+        padding-bottom: calc(16px + 20px) !important; /* Extra padding for Android navigation bar */
       }
     }
   </style>
@@ -828,8 +828,8 @@ router.get('/chat-widget', async (req, res) => {
           // Mobile: full height with Android navigation bar consideration
           let mobileHeight = window.innerHeight;
           if (isAndroid) {
-            // Add minimal margin for Android navigation bar
-            mobileHeight = window.innerHeight - 5; // Minimal space for navigation bar
+            // Add extra padding for Android navigation bar
+            mobileHeight = window.innerHeight - 20; // Reserve space for navigation bar
           }
           chatContainer.style.height = mobileHeight + 'px';
         } else {
@@ -860,8 +860,8 @@ router.get('/chat-widget', async (req, res) => {
         let availableHeight = window.innerHeight - headerHeight - inputHeight;
         
         if (isMobile && isAndroid) {
-          // Add minimal space for Android navigation bar
-          availableHeight -= 5;
+          // Add extra space for Android navigation bar
+          availableHeight -= 20;
         } else if (isMobile) {
           availableHeight -= 0;
         } else {
