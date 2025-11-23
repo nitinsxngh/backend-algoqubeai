@@ -24,6 +24,9 @@ router.get('/chat-widget', async (req, res) => {
       displayName = 'AI Assistant',
     } = chatbox.configuration || {};
 
+    // Get webhook URL from environment variable
+    const webhookUrl = process.env.MESSAGE_PROCESSOR_WEBHOOK_URL || 'http://localhost:5001/webhook/efbc9578-4d9d-4130-9471-87a9fddcdc90';
+
     const html = `
 <!DOCTYPE html>
 <html>
@@ -899,6 +902,7 @@ router.get('/chat-widget', async (req, res) => {
     
     let pendingMessage = '';
     let isSubmittingLead = false;
+    let currentConversationId = null;
 
     function formatText(text) {
       if (!text) return '';
@@ -962,6 +966,8 @@ router.get('/chat-widget', async (req, res) => {
 
     function showLeadForm(message) {
       pendingMessage = message;
+      // Ensure conversation is initialized before showing lead form
+      initConversationIfNeeded();
       leadFormOverlay.style.display = 'flex';
       leadForm.reset();
       clearLeadFormErrors();
@@ -1030,6 +1036,8 @@ router.get('/chat-widget', async (req, res) => {
       leadFormLoading.style.display = 'inline-block';
 
       addMessage('user', pendingMessage);
+      // Save user message to conversation
+      saveMessageToConversation('user', pendingMessage);
 
       const leadData = {
         name: document.getElementById('leadName').value.trim(),
@@ -1039,18 +1047,48 @@ router.get('/chat-widget', async (req, res) => {
         message: document.getElementById('leadMessage').value.trim()
       };
 
-      const leadMessage = \`Thank you for your interest! I've received your contact information:\\n\\nName: \${leadData.name}\\nEmail: \${leadData.email}\\nPhone: \${leadData.phone}\\nCompany: \${leadData.company}\${leadData.message ? \`\\nMessage: \${leadData.message}\` : ''}\\n\\nI'll make sure our team gets back to you soon!\`;
-      addMessage('bot', leadMessage);
+      const leadPayload = {
+        chatboxId: '${chatbox._id}',
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        company: leadData.company,
+        message: leadData.message,
+        sourceMessage: pendingMessage,
+        conversationId: currentConversationId || null
+      };
 
-      console.log('Lead data submitted:', leadData);
-
-      setTimeout(() => {
+      fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leadPayload)
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to submit lead');
+        }
+        return res.json();
+      })
+      .then(() => {
+        const leadMessage = \`Thank you for your interest! I've received your contact information:\n\nName: \${leadData.name}\nEmail: \${leadData.email}\nPhone: \${leadData.phone}\nCompany: \${leadData.company}\${leadData.message ? '\\nMessage: ' + leadData.message : ''}\n\nI'll make sure our team gets back to you soon!\`;
+        addMessage('bot', leadMessage);
+        // Save bot response to conversation
+        saveMessageToConversation('bot', leadMessage);
+      })
+      .catch((error) => {
+        console.error('Lead submission failed:', error);
+        const errorMsg = 'Thank you! We were unable to save your details automatically, please try again later or contact us directly.';
+        addMessage('bot', errorMsg);
+        // Save error message to conversation
+        saveMessageToConversation('bot', errorMsg);
+      })
+      .finally(() => {
         isSubmittingLead = false;
         leadFormSubmit.disabled = false;
         leadFormSubmitText.style.display = 'inline';
         leadFormLoading.style.display = 'none';
         hideLeadForm();
-      }, 1000);
+      });
     }
 
     messageInput.addEventListener('input', function() {
@@ -1078,9 +1116,78 @@ router.get('/chat-widget', async (req, res) => {
       }
     });
 
+    // Initialize conversation when first message is sent
+    function initConversationIfNeeded(callback) {
+      if (currentConversationId) {
+        if (callback) callback(currentConversationId);
+        return;
+      }
+      
+      fetch('/api/analytics/initiate/${chatbox.name}', {
+        method: 'POST'
+      })
+      .then(res => res.json())
+      .then(data => {
+        currentConversationId = data.conversationId;
+        if (callback) callback(currentConversationId);
+      })
+      .catch(err => {
+        console.warn('Failed to initiate conversation:', err);
+        if (callback) callback(null);
+      });
+    }
+
+    // Save message to conversation
+    function saveMessageToConversation(role, content) {
+      if (!currentConversationId) {
+        // Initialize conversation first, then save message
+        initConversationIfNeeded((conversationId) => {
+          if (conversationId) {
+            fetch('/api/analytics/message/${chatbox.name}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversationId: conversationId,
+                role: role,
+                content: content
+              })
+            })
+            .then(res => res.json())
+            .then(data => {
+              console.log('Message saved to conversation:', data);
+            })
+            .catch(err => {
+              console.warn('Failed to save message to conversation:', err);
+            });
+          }
+        });
+        return;
+      }
+
+      fetch('/api/analytics/message/${chatbox.name}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: currentConversationId,
+          role: role,
+          content: content
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log('Message saved to conversation:', data);
+      })
+      .catch(err => {
+        console.warn('Failed to save message to conversation:', err);
+      });
+    }
+
     function sendMessage() {
       const message = messageInput.value.trim();
       if (!message) return;
+
+      // Initialize conversation if needed
+      initConversationIfNeeded();
 
       if (checkForLeadKeywords(message)) {
         showLeadForm(message);
@@ -1090,13 +1197,15 @@ router.get('/chat-widget', async (req, res) => {
       }
 
       addMessage('user', message);
+      // Save user message to conversation
+      saveMessageToConversation('user', message);
       messageInput.value = '';
       messageInput.style.height = 'auto';
       
       sendButton.disabled = true;
       showTypingIndicator();
 
-      fetch('https://n8n.xendrax.in/webhook/efbc9578-4d9d-4130-9471-87a9fddcdc90', {
+      fetch('${webhookUrl}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1106,8 +1215,8 @@ router.get('/chat-widget', async (req, res) => {
               website: { 
                 url: window.location.origin,
                 domain: '${chatbox.domainUrl || window.location.origin}',
-                organization: '${chatbox.organizationName || 'Organisation'}',
-                category: '${chatbox.category || 'General'}'
+                organization: '${chatbox.organizationName || "Organisation"}',
+                category: '${chatbox.category || "General"}'
               },
               chatbotName: '${chatbox.name || 'general-chatbot'}',
               chatbotId: '${chatbox._id || ''}'
@@ -1143,11 +1252,16 @@ router.get('/chat-widget', async (req, res) => {
         }
 
         addMessage('bot', reply);
+        // Save bot message to conversation
+        saveMessageToConversation('bot', reply);
       })
       .catch(err => {
         sendButton.disabled = false;
         hideTypingIndicator();
-        addMessage('bot', 'Sorry, I am experiencing technical difficulties. Please try again later.');
+        const errorMessage = 'Sorry, I am experiencing technical difficulties. Please try again later.';
+        addMessage('bot', errorMessage);
+        // Save error message to conversation
+        saveMessageToConversation('bot', errorMessage);
         console.error('Chat error:', err);
       });
     }
@@ -1228,6 +1342,9 @@ router.get('/chat-widget', async (req, res) => {
       messages.scrollTop = messages.scrollHeight;
     }
 
+    // Initialize conversation when chat widget loads
+    initConversationIfNeeded();
+    
     messageInput.focus();
     
     // Handle iframe width issues by adjusting container

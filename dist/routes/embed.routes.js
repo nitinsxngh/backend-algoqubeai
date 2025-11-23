@@ -36,14 +36,28 @@ router.get('/embed.js', (req, res) => {
           const themeColor = config.themeColor || '#000000';
           const displayName = config.displayName || 'Chatbot';
 
-          // Create a container div with fixed dimensions
+          // Create a container div with responsive dimensions
           const container = document.createElement('div');
+          const screenHeight = window.innerHeight;
+          let maxHeight;
+          
+          if (screenHeight <= 600) {
+            maxHeight = Math.min(450, screenHeight - 20);
+          } else if (screenHeight <= 800) {
+            maxHeight = Math.min(550, screenHeight - 40);
+          } else if (screenHeight <= 1000) {
+            maxHeight = Math.min(650, screenHeight - 40);
+          } else {
+            maxHeight = Math.min(700, screenHeight - 40);
+          }
+          
           container.style.cssText = \`
             position: fixed !important;
             bottom: 20px !important;
             right: 20px !important;
             width: 350px !important;
-            height: 500px !important;
+            height: \${maxHeight}px !important;
+            max-height: \${maxHeight}px !important;
             z-index: 99999 !important;
             pointer-events: none !important;
             overflow: hidden !important;
@@ -59,11 +73,11 @@ router.get('/embed.js', (req, res) => {
           // Set iframe styles with maximum specificity
           iframe.style.cssText = \`
             width: 350px !important;
-            height: 500px !important;
+            height: \${maxHeight}px !important;
             max-width: 350px !important;
-            max-height: 500px !important;
+            max-height: \${maxHeight}px !important;
             min-width: 350px !important;
-            min-height: 500px !important;
+            min-height: 200px !important;
             border: none !important;
             border-radius: 12px !important;
             box-shadow: 0 0 15px rgba(0,0,0,0.2) !important;
@@ -75,7 +89,7 @@ router.get('/embed.js', (req, res) => {
           
           // Set iframe attributes as backup
           iframe.setAttribute('width', '350');
-          iframe.setAttribute('height', '500');
+          iframe.setAttribute('height', maxHeight.toString());
           iframe.setAttribute('frameborder', '0');
           iframe.setAttribute('scrolling', 'no');
           
@@ -88,21 +102,21 @@ router.get('/embed.js', (req, res) => {
             /* Override the specific conflicting iframe rule */
             iframe[src*="chat-widget"] {
               width: 350px !important;
-              height: 500px !important;
+              height: min(500px, calc(100vh - 40px)) !important;
               max-width: 350px !important;
-              max-height: 500px !important;
+              max-height: min(500px, calc(100vh - 40px)) !important;
               min-width: 350px !important;
-              min-height: 500px !important;
+              min-height: 200px !important;
             }
             
             /* Target iframe by src attribute for maximum specificity */
             iframe[src*="aiapi.algoqube.com"] {
               width: 350px !important;
-              height: 500px !important;
+              height: min(500px, calc(100vh - 40px)) !important;
               max-width: 350px !important;
-              max-height: 500px !important;
+              max-height: min(500px, calc(100vh - 40px)) !important;
               min-width: 350px !important;
-              min-height: 500px !important;
+              min-height: 200px !important;
             }
             
             /* Override any iframe width: 100% rules */
@@ -137,21 +151,21 @@ router.get('/embed.js', (req, res) => {
             /* Additional protection against common CSS resets */
             iframe.algoqube-chatbot-iframe {
               width: 350px !important;
-              height: 500px !important;
+              height: min(500px, calc(100vh - 40px)) !important;
               max-width: 350px !important;
-              max-height: 500px !important;
+              max-height: min(500px, calc(100vh - 40px)) !important;
               min-width: 350px !important;
-              min-height: 500px !important;
+              min-height: 200px !important;
             }
             
             /* Prevent any parent container from affecting the iframe */
             * .algoqube-chatbot-iframe {
               width: 350px !important;
-              height: 500px !important;
+              height: min(500px, calc(100vh - 40px)) !important;
               max-width: 350px !important;
-              max-height: 500px !important;
+              max-height: min(500px, calc(100vh - 40px)) !important;
               min-width: 350px !important;
-              min-height: 500px !important;
+              min-height: 200px !important;
             }
             
             /* Specific override for the conflicting iframe rule */
@@ -194,6 +208,26 @@ router.get('/embed.js', (req, res) => {
               }
             }
             
+            /* Handle smaller laptop screens */
+            @media (max-height: 800px) and (min-width: 768px) {
+              iframe[src*="chat-widget"],
+              iframe[src*="aiapi.algoqube.com"],
+              iframe.algoqube-chatbot-iframe {
+                height: min(400px, calc(100vh - 40px)) !important;
+                max-height: min(400px, calc(100vh - 40px)) !important;
+              }
+            }
+            
+            /* Handle very small laptop screens */
+            @media (max-height: 600px) and (min-width: 768px) {
+              iframe[src*="chat-widget"],
+              iframe[src*="aiapi.algoqube.com"],
+              iframe.algoqube-chatbot-iframe {
+                height: min(300px, calc(100vh - 20px)) !important;
+                max-height: min(300px, calc(100vh - 20px)) !important;
+              }
+            }
+            
             @media (max-width: 480px) {
               .algoqube-chatbot-iframe {
                 width: 100vw !important;
@@ -215,6 +249,19 @@ router.get('/embed.js', (req, res) => {
           // Function to enforce iframe dimensions
           function enforceIframeDimensions() {
             if (iframe && iframe.style) {
+              const screenHeight = window.innerHeight;
+              let currentMaxHeight;
+              
+              if (screenHeight <= 600) {
+                currentMaxHeight = Math.min(450, screenHeight - 20);
+              } else if (screenHeight <= 800) {
+                currentMaxHeight = Math.min(550, screenHeight - 40);
+              } else if (screenHeight <= 1000) {
+                currentMaxHeight = Math.min(650, screenHeight - 40);
+              } else {
+                currentMaxHeight = Math.min(700, screenHeight - 40);
+              }
+              
               // Remove any existing width styles first
               iframe.style.removeProperty('width');
               iframe.style.removeProperty('max-width');
@@ -222,15 +269,21 @@ router.get('/embed.js', (req, res) => {
               
               // Set our dimensions with maximum specificity
               iframe.style.setProperty('width', '350px', 'important');
-              iframe.style.setProperty('height', '500px', 'important');
+              iframe.style.setProperty('height', currentMaxHeight + 'px', 'important');
               iframe.style.setProperty('max-width', '350px', 'important');
-              iframe.style.setProperty('max-height', '500px', 'important');
+              iframe.style.setProperty('max-height', currentMaxHeight + 'px', 'important');
               iframe.style.setProperty('min-width', '350px', 'important');
-              iframe.style.setProperty('min-height', '500px', 'important');
+              iframe.style.setProperty('min-height', '200px', 'important');
               
               // Also set the iframe attributes as backup
               iframe.setAttribute('width', '350');
-              iframe.setAttribute('height', '500');
+              iframe.setAttribute('height', currentMaxHeight.toString());
+              
+              // Update container height as well
+              if (container) {
+                container.style.height = currentMaxHeight + 'px';
+                container.style.maxHeight = currentMaxHeight + 'px';
+              }
               
               // Force a reflow to ensure styles are applied
               iframe.offsetHeight;
@@ -243,9 +296,21 @@ router.get('/embed.js', (req, res) => {
               const computedStyle = window.getComputedStyle(iframe);
               const currentWidth = computedStyle.width;
               const currentHeight = computedStyle.height;
+              const screenHeight = window.innerHeight;
+              let expectedHeight;
               
-              // If width is not 350px, enforce it
-              if (currentWidth !== '350px') {
+              if (screenHeight <= 600) {
+                expectedHeight = Math.min(450, screenHeight - 20);
+              } else if (screenHeight <= 800) {
+                expectedHeight = Math.min(550, screenHeight - 40);
+              } else if (screenHeight <= 1000) {
+                expectedHeight = Math.min(650, screenHeight - 40);
+              } else {
+                expectedHeight = Math.min(700, screenHeight - 40);
+              }
+              
+              // If width is not 350px or height doesn't match expected, enforce it
+              if (currentWidth !== '350px' || parseInt(currentHeight) !== expectedHeight) {
                 enforceIframeDimensions();
               }
             }

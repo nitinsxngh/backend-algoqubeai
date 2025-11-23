@@ -10,6 +10,8 @@ import embedPopupRoutes from './routes/embed-popup.routes';
 import chatWidgetRoutes from './routes/chat-widget.routes';
 import scrapeRoutes from './routes/scrape.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import leadRoutes from './routes/lead.routes';
+import conversationsRoutes from './routes/conversations.routes';
 import adminRoutes from './routes/admin.routes';
 import notificationRoutes from './routes/notification.routes';
 import { dynamicCors } from './middleware/cors';
@@ -89,8 +91,10 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/users', userRoutes);
 app.use('/api/chatboxes', chatboxRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/conversations', conversationsRoutes);
 app.use('/api', scrapeRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/leads', leadRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Static Embed Scripts

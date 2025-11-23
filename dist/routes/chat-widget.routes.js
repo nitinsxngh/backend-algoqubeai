@@ -16,12 +16,14 @@ router.get('/chat-widget', async (req, res) => {
             return res.status(403).send('<p>This chatbot is inactive or unavailable.</p>');
         }
         const { themeColor = '#6366f1', textFont = 'Inter, -apple-system, BlinkMacSystemFont, sans-serif', displayName = 'AI Assistant', } = chatbox.configuration || {};
+        // Get webhook URL from environment variable
+        const webhookUrl = process.env.MESSAGE_PROCESSOR_WEBHOOK_URL || 'http://localhost:5001/webhook/efbc9578-4d9d-4130-9471-87a9fddcdc90';
         const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>${displayName}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,6 +43,7 @@ router.get('/chat-widget', async (req, res) => {
 
     :root {
       --vh: 1vh;
+      --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     body {
@@ -61,7 +64,8 @@ router.get('/chat-widget', async (req, res) => {
     .chat-container {
       display: flex;
       flex-direction: column;
-      height: 500px;
+      height: min(700px, calc(100vh - 40px)); /* Increased default height */
+      max-height: calc(100vh - 40px); /* Ensure it doesn't exceed viewport */
       background: #ffffff;
       position: relative;
       width: 350px;
@@ -538,7 +542,8 @@ router.get('/chat-widget', async (req, res) => {
         width: 350px;
         max-width: 350px;
         min-width: 350px;
-        height: 500px;
+        height: min(700px, calc(100vh - 40px));
+        max-height: calc(100vh - 40px);
         margin: 20px auto;
       }
     }
@@ -549,8 +554,27 @@ router.get('/chat-widget', async (req, res) => {
         width: 350px;
         max-width: 350px;
         min-width: 350px;
-        height: 500px;
+        height: min(650px, calc(100vh - 40px));
+        max-height: calc(100vh - 40px);
         margin: 20px;
+      }
+    }
+    
+    /* Handle smaller laptop screens (Windows laptops) */
+    @media (max-height: 1000px) and (min-width: 768px) {
+      .chat-container {
+        height: min(550px, calc(100vh - 40px));
+        max-height: calc(100vh - 40px);
+        margin: 10px;
+      }
+    }
+    
+    /* Handle very small laptop screens */
+    @media (max-height: 600px) and (min-width: 768px) {
+      .chat-container {
+        height: min(450px, calc(100vh - 20px));
+        max-height: calc(100vh - 20px);
+        margin: 10px;
       }
     }
     
@@ -558,20 +582,24 @@ router.get('/chat-widget', async (req, res) => {
       body {
         height: 100vh;
         height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
+        height: calc(100vh - var(--safe-area-inset-bottom)); /* Account for Android navigation bar */
         overflow: hidden;
         align-items: stretch;
         justify-content: stretch;
+        padding-bottom: var(--safe-area-inset-bottom);
       }
       
       .chat-container {
         height: 100vh;
         height: calc(var(--vh, 1vh) * 100); /* Dynamic viewport height for mobile */
+        height: calc(100vh - var(--safe-area-inset-bottom)); /* Account for Android navigation bar */
         width: 100%;
         max-width: 100%;
         min-width: 100%;
         border-radius: 0;
         margin: 0;
         box-shadow: none;
+        padding-bottom: var(--safe-area-inset-bottom);
       }
       
       .message-content {
@@ -598,6 +626,7 @@ router.get('/chat-widget', async (req, res) => {
       
       .input-container {
         padding: 16px 20px;
+        padding-bottom: calc(16px + var(--safe-area-inset-bottom));
         position: sticky;
         bottom: 0;
         background: #ffffff;
@@ -638,14 +667,29 @@ router.get('/chat-widget', async (req, res) => {
         padding: 12px;
         height: calc(100vh - 120px);
         height: calc(calc(var(--vh, 1vh) * 100) - 120px); /* Dynamic viewport height for mobile */
+        height: calc(100vh - 120px - var(--safe-area-inset-bottom)); /* Account for Android navigation bar */
       }
       
       .input-container {
         padding: 12px 16px;
+        padding-bottom: calc(12px + var(--safe-area-inset-bottom));
+        padding-bottom: calc(12px + 20px); /* Extra padding for Android navigation bar */
       }
       
       .message-content {
         max-width: 90%;
+      }
+    }
+    
+    /* Android-specific styles */
+    @media screen and (max-width: 768px) and (orientation: portrait) {
+      .chat-container {
+        height: calc(100vh - 20px) !important; /* Reserve space for Android navigation bar */
+        max-height: calc(100vh - 20px) !important;
+      }
+      
+      .input-container {
+        padding-bottom: calc(16px + 20px) !important; /* Extra padding for Android navigation bar */
       }
     }
   </style>
@@ -763,26 +807,62 @@ router.get('/chat-widget', async (req, res) => {
     const messages = document.getElementById('messages');
     const closeButton = document.getElementById('closeButton');
     
-    // Handle mobile keyboard viewport changes
+    // Handle mobile keyboard viewport changes and desktop height adjustments
     function handleViewportChange() {
       const isMobile = window.innerWidth <= 768;
-      if (isMobile) {
-        const vh = window.innerHeight * 0.01;
-        document.documentElement.style.setProperty('--vh', vh + 'px');
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', vh + 'px');
+      
+      // Detect Android devices
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      
+      const chatContainer = document.querySelector('.chat-container');
+      if (chatContainer) {
+        if (isMobile) {
+          // Mobile: full height with Android navigation bar consideration
+          let mobileHeight = window.innerHeight;
+          if (isAndroid) {
+            // Add extra padding for Android navigation bar
+            mobileHeight = window.innerHeight - 20; // Reserve space for navigation bar
+          }
+          chatContainer.style.height = mobileHeight + 'px';
+        } else {
+          // Desktop: responsive height based on viewport
+          const screenHeight = window.innerHeight;
+          let maxHeight;
+          
+          if (screenHeight <= 600) {
+            maxHeight = Math.min(450, screenHeight - 20);
+          } else if (screenHeight <= 800) {
+            maxHeight = Math.min(550, screenHeight - 40);
+          } else if (screenHeight <= 1000) {
+            maxHeight = Math.min(650, screenHeight - 40);
+          } else {
+            maxHeight = Math.min(700, screenHeight - 40);
+          }
+          
+          chatContainer.style.height = maxHeight + 'px';
+          chatContainer.style.maxHeight = maxHeight + 'px';
+        }
+      }
+      
+      // Adjust messages container height
+      const messagesContainer = document.querySelector('.messages-container');
+      if (messagesContainer) {
+        const headerHeight = document.querySelector('.chat-header').offsetHeight;
+        const inputHeight = document.querySelector('.input-container').offsetHeight;
+        let availableHeight = window.innerHeight - headerHeight - inputHeight;
         
-        // Adjust chat container height
-        const chatContainer = document.querySelector('.chat-container');
-        if (chatContainer) {
-          chatContainer.style.height = window.innerHeight + 'px';
+        if (isMobile && isAndroid) {
+          // Add extra space for Android navigation bar
+          availableHeight -= 20;
+        } else if (isMobile) {
+          availableHeight -= 0;
+        } else {
+          availableHeight -= 40;
         }
         
-        // Adjust messages container height
-        const messagesContainer = document.querySelector('.messages-container');
-        if (messagesContainer) {
-          const headerHeight = document.querySelector('.chat-header').offsetHeight;
-          const inputHeight = document.querySelector('.input-container').offsetHeight;
-          messagesContainer.style.height = (window.innerHeight - headerHeight - inputHeight) + 'px';
-        }
+        messagesContainer.style.height = Math.max(200, availableHeight) + 'px';
       }
     }
     
@@ -813,6 +893,7 @@ router.get('/chat-widget', async (req, res) => {
     
     let pendingMessage = '';
     let isSubmittingLead = false;
+    let currentConversationId = null;
 
     function formatText(text) {
       if (!text) return '';
@@ -876,6 +957,8 @@ router.get('/chat-widget', async (req, res) => {
 
     function showLeadForm(message) {
       pendingMessage = message;
+      // Ensure conversation is initialized before showing lead form
+      initConversationIfNeeded();
       leadFormOverlay.style.display = 'flex';
       leadForm.reset();
       clearLeadFormErrors();
@@ -944,6 +1027,8 @@ router.get('/chat-widget', async (req, res) => {
       leadFormLoading.style.display = 'inline-block';
 
       addMessage('user', pendingMessage);
+      // Save user message to conversation
+      saveMessageToConversation('user', pendingMessage);
 
       const leadData = {
         name: document.getElementById('leadName').value.trim(),
@@ -953,18 +1038,48 @@ router.get('/chat-widget', async (req, res) => {
         message: document.getElementById('leadMessage').value.trim()
       };
 
-      const leadMessage = \`Thank you for your interest! I've received your contact information:\\n\\nName: \${leadData.name}\\nEmail: \${leadData.email}\\nPhone: \${leadData.phone}\\nCompany: \${leadData.company}\${leadData.message ? \`\\nMessage: \${leadData.message}\` : ''}\\n\\nI'll make sure our team gets back to you soon!\`;
-      addMessage('bot', leadMessage);
+      const leadPayload = {
+        chatboxId: '${chatbox._id}',
+        name: leadData.name,
+        email: leadData.email,
+        phone: leadData.phone,
+        company: leadData.company,
+        message: leadData.message,
+        sourceMessage: pendingMessage,
+        conversationId: currentConversationId || null
+      };
 
-      console.log('Lead data submitted:', leadData);
-
-      setTimeout(() => {
+      fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leadPayload)
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to submit lead');
+        }
+        return res.json();
+      })
+      .then(() => {
+        const leadMessage = \`Thank you for your interest! I've received your contact information:\n\nName: \${leadData.name}\nEmail: \${leadData.email}\nPhone: \${leadData.phone}\nCompany: \${leadData.company}\${leadData.message ? '\\nMessage: ' + leadData.message : ''}\n\nI'll make sure our team gets back to you soon!\`;
+        addMessage('bot', leadMessage);
+        // Save bot response to conversation
+        saveMessageToConversation('bot', leadMessage);
+      })
+      .catch((error) => {
+        console.error('Lead submission failed:', error);
+        const errorMsg = 'Thank you! We were unable to save your details automatically, please try again later or contact us directly.';
+        addMessage('bot', errorMsg);
+        // Save error message to conversation
+        saveMessageToConversation('bot', errorMsg);
+      })
+      .finally(() => {
         isSubmittingLead = false;
         leadFormSubmit.disabled = false;
         leadFormSubmitText.style.display = 'inline';
         leadFormLoading.style.display = 'none';
         hideLeadForm();
-      }, 1000);
+      });
     }
 
     messageInput.addEventListener('input', function() {
@@ -992,9 +1107,78 @@ router.get('/chat-widget', async (req, res) => {
       }
     });
 
+    // Initialize conversation when first message is sent
+    function initConversationIfNeeded(callback) {
+      if (currentConversationId) {
+        if (callback) callback(currentConversationId);
+        return;
+      }
+      
+      fetch('/api/analytics/initiate/${chatbox.name}', {
+        method: 'POST'
+      })
+      .then(res => res.json())
+      .then(data => {
+        currentConversationId = data.conversationId;
+        if (callback) callback(currentConversationId);
+      })
+      .catch(err => {
+        console.warn('Failed to initiate conversation:', err);
+        if (callback) callback(null);
+      });
+    }
+
+    // Save message to conversation
+    function saveMessageToConversation(role, content) {
+      if (!currentConversationId) {
+        // Initialize conversation first, then save message
+        initConversationIfNeeded((conversationId) => {
+          if (conversationId) {
+            fetch('/api/analytics/message/${chatbox.name}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversationId: conversationId,
+                role: role,
+                content: content
+              })
+            })
+            .then(res => res.json())
+            .then(data => {
+              console.log('Message saved to conversation:', data);
+            })
+            .catch(err => {
+              console.warn('Failed to save message to conversation:', err);
+            });
+          }
+        });
+        return;
+      }
+
+      fetch('/api/analytics/message/${chatbox.name}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: currentConversationId,
+          role: role,
+          content: content
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log('Message saved to conversation:', data);
+      })
+      .catch(err => {
+        console.warn('Failed to save message to conversation:', err);
+      });
+    }
+
     function sendMessage() {
       const message = messageInput.value.trim();
       if (!message) return;
+
+      // Initialize conversation if needed
+      initConversationIfNeeded();
 
       if (checkForLeadKeywords(message)) {
         showLeadForm(message);
@@ -1004,13 +1188,15 @@ router.get('/chat-widget', async (req, res) => {
       }
 
       addMessage('user', message);
+      // Save user message to conversation
+      saveMessageToConversation('user', message);
       messageInput.value = '';
       messageInput.style.height = 'auto';
       
       sendButton.disabled = true;
       showTypingIndicator();
 
-      fetch('https://n8n.xendrax.in/webhook/efbc9578-4d9d-4130-9471-87a9fddcdc90', {
+      fetch('${webhookUrl}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1020,8 +1206,8 @@ router.get('/chat-widget', async (req, res) => {
               website: { 
                 url: window.location.origin,
                 domain: '${chatbox.domainUrl || window.location.origin}',
-                organization: '${chatbox.organizationName || 'Organisation'}',
-                category: '${chatbox.category || 'General'}'
+                organization: '${chatbox.organizationName || "Organisation"}',
+                category: '${chatbox.category || "General"}'
               },
               chatbotName: '${chatbox.name || 'general-chatbot'}',
               chatbotId: '${chatbox._id || ''}'
@@ -1057,11 +1243,16 @@ router.get('/chat-widget', async (req, res) => {
         }
 
         addMessage('bot', reply);
+        // Save bot message to conversation
+        saveMessageToConversation('bot', reply);
       })
       .catch(err => {
         sendButton.disabled = false;
         hideTypingIndicator();
-        addMessage('bot', 'Sorry, I am experiencing technical difficulties. Please try again later.');
+        const errorMessage = 'Sorry, I am experiencing technical difficulties. Please try again later.';
+        addMessage('bot', errorMessage);
+        // Save error message to conversation
+        saveMessageToConversation('bot', errorMessage);
         console.error('Chat error:', err);
       });
     }
@@ -1142,6 +1333,9 @@ router.get('/chat-widget', async (req, res) => {
       messages.scrollTop = messages.scrollHeight;
     }
 
+    // Initialize conversation when chat widget loads
+    initConversationIfNeeded();
+    
     messageInput.focus();
     
     // Handle iframe width issues by adjusting container
@@ -1149,20 +1343,43 @@ router.get('/chat-widget', async (req, res) => {
       const container = document.querySelector('.chat-container');
       if (container) {
         const iframeWidth = window.innerWidth;
+        const iframeHeight = window.innerHeight;
         
         if (iframeWidth > 1000) {
           // If iframe is very wide, center the chat container
           container.style.width = '350px';
           container.style.maxWidth = '350px';
           container.style.minWidth = '350px';
-          container.style.height = '500px';
+          let maxHeight;
+          if (iframeHeight <= 600) {
+            maxHeight = Math.min(450, iframeHeight - 20);
+          } else if (iframeHeight <= 800) {
+            maxHeight = Math.min(550, iframeHeight - 40);
+          } else if (iframeHeight <= 1000) {
+            maxHeight = Math.min(650, iframeHeight - 40);
+          } else {
+            maxHeight = Math.min(700, iframeHeight - 40);
+          }
+          container.style.height = maxHeight + 'px';
+          container.style.maxHeight = maxHeight + 'px';
           container.style.margin = '20px auto';
         } else if (iframeWidth > 500) {
-          // If iframe is moderately wide, keep fixed size
+          // If iframe is moderately wide, keep fixed size with responsive height
           container.style.width = '350px';
           container.style.maxWidth = '350px';
           container.style.minWidth = '350px';
-          container.style.height = '500px';
+          let maxHeight;
+          if (iframeHeight <= 600) {
+            maxHeight = Math.min(450, iframeHeight - 20);
+          } else if (iframeHeight <= 800) {
+            maxHeight = Math.min(550, iframeHeight - 40);
+          } else if (iframeHeight <= 1000) {
+            maxHeight = Math.min(650, iframeHeight - 40);
+          } else {
+            maxHeight = Math.min(700, iframeHeight - 40);
+          }
+          container.style.height = maxHeight + 'px';
+          container.style.maxHeight = maxHeight + 'px';
           container.style.margin = '20px';
         } else {
           // If iframe is narrow (mobile), use full width
@@ -1170,6 +1387,7 @@ router.get('/chat-widget', async (req, res) => {
           container.style.maxWidth = '100%';
           container.style.minWidth = '100%';
           container.style.height = '100vh';
+          container.style.maxHeight = '100vh';
           container.style.margin = '0';
           container.style.borderRadius = '0';
           container.style.boxShadow = 'none';

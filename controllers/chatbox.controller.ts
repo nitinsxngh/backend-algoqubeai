@@ -567,3 +567,62 @@ export const incrementWebsiteVisits = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to increment website visits' });
   }
 };
+
+/**
+ * POST /api/chatboxes/encrypt-email
+ * Encrypt email and return a token for use in URLs
+ */
+export const encryptEmail = async (req: Request, res: Response) => {
+  try {
+    const { email, chatboxId } = req.body;
+    
+    if (!email || !chatboxId) {
+      return res.status(400).json({ error: 'Email and chatboxId are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Use JWT to create an encrypted token (expires in 7 days)
+    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const token = jwt.sign(
+      { email, chatboxId, timestamp: Date.now() },
+      secret,
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ token });
+  } catch (err) {
+    console.error('[Encrypt Email Error]', err);
+    res.status(500).json({ error: 'Failed to encrypt email' });
+  }
+};
+
+/**
+ * GET /api/chatboxes/decrypt-email/:token
+ * Decrypt token and return email (for validation/internal use)
+ */
+export const decryptEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+    const decoded = jwt.verify(token, secret) as any;
+
+    return res.json({ 
+      email: decoded.email,
+      chatboxId: decoded.chatboxId,
+      valid: true
+    });
+  } catch (err) {
+    console.error('[Decrypt Email Error]', err);
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};

@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.incrementWebsiteVisits = exports.analyzeWebsiteColors = exports.updateChatboxConfiguration = exports.getChatboxByName = exports.deleteChatbox = exports.updateChatbox = exports.getChatboxById = exports.getChatboxes = exports.createChatbox = void 0;
+exports.decryptEmail = exports.encryptEmail = exports.incrementWebsiteVisits = exports.analyzeWebsiteColors = exports.updateChatboxConfiguration = exports.getChatboxByName = exports.deleteChatbox = exports.updateChatbox = exports.getChatboxById = exports.getChatboxes = exports.createChatbox = void 0;
 const axios_1 = __importDefault(require("axios"));
 const chatbox_model_1 = __importDefault(require("../models/chatbox.model"));
 const s3_1 = require("../utils/s3");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const cors_1 = require("../middleware/cors");
 const notification_controller_1 = require("./notification.controller");
 // 🆕 Create chatbox
@@ -494,3 +495,53 @@ const incrementWebsiteVisits = async (req, res) => {
     }
 };
 exports.incrementWebsiteVisits = incrementWebsiteVisits;
+/**
+ * POST /api/chatboxes/encrypt-email
+ * Encrypt email and return a token for use in URLs
+ */
+const encryptEmail = async (req, res) => {
+    try {
+        const { email, chatboxId } = req.body;
+        if (!email || !chatboxId) {
+            return res.status(400).json({ error: 'Email and chatboxId are required' });
+        }
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+        // Use JWT to create an encrypted token (expires in 7 days)
+        const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+        const token = jsonwebtoken_1.default.sign({ email, chatboxId, timestamp: Date.now() }, secret, { expiresIn: '7d' });
+        return res.json({ token });
+    }
+    catch (err) {
+        console.error('[Encrypt Email Error]', err);
+        res.status(500).json({ error: 'Failed to encrypt email' });
+    }
+};
+exports.encryptEmail = encryptEmail;
+/**
+ * GET /api/chatboxes/decrypt-email/:token
+ * Decrypt token and return email (for validation/internal use)
+ */
+const decryptEmail = async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (!token) {
+            return res.status(400).json({ error: 'Token is required' });
+        }
+        const secret = process.env.JWT_SECRET || 'fallback-secret-key';
+        const decoded = jsonwebtoken_1.default.verify(token, secret);
+        return res.json({
+            email: decoded.email,
+            chatboxId: decoded.chatboxId,
+            valid: true
+        });
+    }
+    catch (err) {
+        console.error('[Decrypt Email Error]', err);
+        res.status(401).json({ error: 'Invalid or expired token' });
+    }
+};
+exports.decryptEmail = decryptEmail;

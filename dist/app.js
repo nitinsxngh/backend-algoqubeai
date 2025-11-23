@@ -14,6 +14,8 @@ const embed_popup_routes_1 = __importDefault(require("./routes/embed-popup.route
 const chat_widget_routes_1 = __importDefault(require("./routes/chat-widget.routes"));
 const scrape_routes_1 = __importDefault(require("./routes/scrape.routes"));
 const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"));
+const lead_routes_1 = __importDefault(require("./routes/lead.routes"));
+const conversations_routes_1 = __importDefault(require("./routes/conversations.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const cors_1 = require("./middleware/cors");
@@ -80,8 +82,10 @@ app.get('/health', (req, res) => {
 app.use('/api/users', user_routes_1.default);
 app.use('/api/chatboxes', chatbox_routes_1.default);
 app.use('/api/notifications', notification_routes_1.default);
+app.use('/api/conversations', conversations_routes_1.default);
 app.use('/api', scrape_routes_1.default);
 app.use('/api/analytics', analytics_routes_1.default);
+app.use('/api/leads', lead_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
 // Static Embed Scripts
 app.use(embed_routes_1.default);

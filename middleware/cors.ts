@@ -48,6 +48,7 @@ export async function getAllowedOrigins(): Promise<string[]> {
   // Static origins (always available)
   const staticOrigins: string[] = [
     'http://localhost:3000',
+    'http://localhost:4000',
     'https://algoqube.com',
     'https://ai.algoqube.com',
     'https://client-algoqubeai.vercel.app',
@@ -97,6 +98,7 @@ export const dynamicCors = async (req: Request, res: Response, next: NextFunctio
     // First check static origins (fast check)
     const staticOrigins = [
       'http://localhost:3000',
+    'http://localhost:4000',
       'https://algoqube.com',
       'https://ai.algoqube.com',
       'https://client-algoqubeai.vercel.app',
@@ -197,6 +199,7 @@ export const staticCors = cors({
     
     const allowedOrigins = [
       'http://localhost:3000',
+    'http://localhost:4000',
       'https://algoqube.com',
       'https://ai.algoqube.com',
       'https://client-algoqubeai.vercel.app',
