@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const chatbox_controller_1 = require("../controllers/chatbox.controller");
 const auth_1 = require("../middleware/auth");
+const upload_1 = require("../middleware/upload");
 const router = express_1.default.Router();
 // Public routes (no authentication required) - MUST come before parameterized routes
 router.get('/analyze-colors', chatbox_controller_1.analyzeWebsiteColors);
@@ -15,9 +16,17 @@ router.post('/encrypt-email', chatbox_controller_1.encryptEmail); // Encrypt ema
 router.get('/decrypt-email/:token', chatbox_controller_1.decryptEmail); // Decrypt email token
 // Protected routes (require authentication)
 router.post('/', auth_1.authenticate, chatbox_controller_1.createChatbox);
+router.post('/upload-document', auth_1.authenticate, upload_1.uploadDocument.array('documents', 10), chatbox_controller_1.uploadDocumentForCreation);
 router.get('/', auth_1.authenticate, chatbox_controller_1.getChatboxes);
+router.post('/:id/upload-image', auth_1.authenticate, upload_1.uploadImage.single('image'), chatbox_controller_1.uploadOrganizationImage);
+router.post('/:id/upload-document', auth_1.authenticate, upload_1.uploadDocument.array('documents', 10), chatbox_controller_1.uploadDocument);
 router.get('/:id', auth_1.authenticate, chatbox_controller_1.getChatboxById);
 router.put('/:id', auth_1.authenticate, chatbox_controller_1.updateChatbox);
 router.delete('/:id', auth_1.authenticate, chatbox_controller_1.deleteChatbox);
 router.patch('/:id/configuration', auth_1.authenticate, chatbox_controller_1.updateChatboxConfiguration);
+// Predefined questions routes
+router.get('/:id/predefined-questions', auth_1.authenticate, chatbox_controller_1.getPredefinedQuestions);
+router.post('/:id/predefined-questions', auth_1.authenticate, chatbox_controller_1.addPredefinedQuestion);
+router.put('/:id/predefined-questions/:questionId', auth_1.authenticate, chatbox_controller_1.updatePredefinedQuestion);
+router.delete('/:id/predefined-questions/:questionId', auth_1.authenticate, chatbox_controller_1.deletePredefinedQuestion);
 exports.default = router;

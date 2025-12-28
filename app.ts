@@ -14,6 +14,7 @@ import leadRoutes from './routes/lead.routes';
 import conversationsRoutes from './routes/conversations.routes';
 import adminRoutes from './routes/admin.routes';
 import notificationRoutes from './routes/notification.routes';
+import instagramRoutes from './routes/instagram.routes';
 import { dynamicCors } from './middleware/cors';
 
 dotenv.config();
@@ -64,8 +65,27 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use(dynamicCors);
 
 // Body parsing middleware with limits
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Skip JSON parsing for multipart/form-data (file uploads handled by multer)
+const jsonParser = express.json({ limit: '10mb' });
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const contentType = req.headers['content-type'] || '';
+  // Skip JSON parsing for file uploads or upload-image routes
+  if (contentType.includes('multipart/form-data') || req.path.includes('/upload-image')) {
+    return next(); // Skip JSON parsing for file uploads
+  }
+  jsonParser(req, res, next);
+});
+
+// URL encoded parser (also skip for multipart)
+const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' });
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const contentType = req.headers['content-type'] || '';
+  // Skip URL encoded parsing for file uploads or upload-image routes
+  if (contentType.includes('multipart/form-data') || req.path.includes('/upload-image')) {
+    return next(); // Skip URL encoded parsing for file uploads
+  }
+  urlencodedParser(req, res, next);
+});
 app.use(cookieParser());
 
 // Request logging middleware (development only)
@@ -102,6 +122,9 @@ app.use(embedRoutes);
 app.use(embedWebComponentRoutes);
 app.use(embedPopupRoutes);
 app.use(chatWidgetRoutes);
+
+// Instagram Webhook
+app.use(instagramRoutes);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {

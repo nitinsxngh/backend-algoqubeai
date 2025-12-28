@@ -18,6 +18,11 @@ const ChatboxSchema = new mongoose.Schema(
         displayName: String,
         profileAvatar: String,
       },
+      predefinedQuestions: [{
+        question: { type: String, required: true },
+        order: { type: Number, default: 0 },
+        isActive: { type: Boolean, default: true },
+      }],
       analytics: {
         lastUpdated: Date,
         totalToken: { type: Number, default: 0 },

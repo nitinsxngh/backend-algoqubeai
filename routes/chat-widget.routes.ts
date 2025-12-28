@@ -22,7 +22,17 @@ router.get('/chat-widget', async (req, res) => {
       themeColor = '#6366f1',
       textFont = 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
       displayName = 'AI Assistant',
+      profileAvatar = '',
     } = chatbox.configuration || {};
+
+    // Get organization logo from either organizationLogo field or profileAvatar in configuration
+    const organizationLogo = chatbox.organizationLogo || profileAvatar || '';
+
+    // Get predefined questions (only active ones, sorted by order)
+    const predefinedQuestions = (chatbox.predefinedQuestions || [])
+      .filter((q: any) => q.isActive !== false)
+      .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+      .map((q: any) => q.question);
 
     // Get webhook URL from environment variable
     const webhookUrl = process.env.MESSAGE_PROCESSOR_WEBHOOK_URL || 'http://localhost:5001/webhook/efbc9578-4d9d-4130-9471-87a9fddcdc90';
@@ -111,6 +121,14 @@ router.get('/chat-widget', async (req, res) => {
       align-items: center;
       justify-content: center;
       font-size: 16px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .bot-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .header-info {
@@ -207,6 +225,13 @@ router.get('/chat-widget', async (req, res) => {
     .message.bot .message-avatar {
       background: ${themeColor};
       color: white;
+      overflow: hidden;
+    }
+
+    .message-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .message-content {
@@ -545,6 +570,42 @@ router.get('/chat-widget', async (req, res) => {
       }
     }
 
+    .predefined-questions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .predefined-question-btn {
+      padding: 10px 14px;
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 12px;
+      font-size: 13px;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      font-family: ${textFont};
+      word-wrap: break-word;
+      white-space: normal;
+      line-height: 1.4;
+    }
+
+    .predefined-question-btn:hover {
+      background: ${themeColor}15;
+      border-color: ${themeColor};
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px ${themeColor}20;
+    }
+
+    .predefined-question-btn:active {
+      transform: translateY(0);
+    }
+
     /* Handle when iframe is forced to be very wide */
     @media (min-width: 1000px) {
       .chat-container {
@@ -707,7 +768,8 @@ router.get('/chat-widget', async (req, res) => {
   <div class="chat-container">
     <div class="chat-header">
       <div class="bot-avatar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        ${organizationLogo ? `<img src="${organizationLogo}" alt="${displayName}" id="headerBotAvatar" />` : ''}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ${organizationLogo ? 'style="display: none;"' : ''}>
           <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
           <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
           <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -739,6 +801,15 @@ router.get('/chat-widget', async (req, res) => {
         </div>
         <div class="message-content">
           <div class="message-bubble">Hello! I'm ${displayName}. How can I help you today?</div>
+          ${predefinedQuestions.length > 0 ? `
+          <div class="predefined-questions" id="predefinedQuestions">
+            ${predefinedQuestions.map((q: string) => `
+              <button class="predefined-question-btn" data-question="${q.replace(/"/g, '&quot;')}">
+                ${q.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+              </button>
+            `).join('')}
+          </div>
+          ` : ''}
           <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
       </div>
@@ -1107,6 +1178,28 @@ router.get('/chat-widget', async (req, res) => {
     leadForm.addEventListener('submit', handleLeadFormSubmit);
     leadFormClose.addEventListener('click', hideLeadForm);
     
+    // Handle predefined question clicks using event delegation
+    // This ensures it works even if buttons are added dynamically
+    document.addEventListener('click', function(e) {
+      const target = e.target;
+      if (target && target.classList && target.classList.contains('predefined-question-btn')) {
+        const question = target.getAttribute('data-question');
+        if (question) {
+          // Decode HTML entities
+          const decodedQuestion = question.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+          
+          // Hide predefined questions after clicking
+          const predefinedQuestionsContainer = document.getElementById('predefinedQuestions');
+          if (predefinedQuestionsContainer) {
+            predefinedQuestionsContainer.style.display = 'none';
+          }
+          // Set the question in the input and send it
+          messageInput.value = decodedQuestion;
+          sendMessage();
+        }
+      }
+    });
+    
     // Close button functionality for mobile
     closeButton.addEventListener('click', () => {
       if (window.parent && window.parent !== window) {
@@ -1274,7 +1367,34 @@ router.get('/chat-widget', async (req, res) => {
       avatar.className = 'message-avatar';
       
       if (role === 'bot') {
-        avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+        const orgLogo = '${organizationLogo || ''}';
+        if (orgLogo) {
+          const img = document.createElement('img');
+          img.src = orgLogo;
+          img.alt = 'Bot';
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          img.onerror = function() {
+            this.style.display = 'none';
+            if (this.nextElementSibling) {
+              this.nextElementSibling.style.display = 'flex';
+            }
+          };
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('width', '14');
+          svg.setAttribute('height', '14');
+          svg.setAttribute('viewBox', '0 0 24 24');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.setAttribute('stroke-width', '2');
+          svg.style.display = 'none';
+          svg.innerHTML = '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line>';
+          avatar.appendChild(img);
+          avatar.appendChild(svg);
+        } else {
+          avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+        }
       } else {
         avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
       }
@@ -1314,7 +1434,34 @@ router.get('/chat-widget', async (req, res) => {
       
       const avatar = document.createElement('div');
       avatar.className = 'message-avatar';
-      avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+      const orgLogo = '${organizationLogo || ''}';
+      if (orgLogo) {
+        const img = document.createElement('img');
+        img.src = orgLogo;
+        img.alt = 'Bot';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.onerror = function() {
+          this.style.display = 'none';
+          if (this.nextElementSibling) {
+            this.nextElementSibling.style.display = 'flex';
+          }
+        };
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '14');
+        svg.setAttribute('height', '14');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.style.display = 'none';
+        svg.innerHTML = '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line>';
+        avatar.appendChild(img);
+        avatar.appendChild(svg);
+      } else {
+        avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
+      }
       
       const content = document.createElement('div');
       content.className = 'message-content';
@@ -1342,6 +1489,18 @@ router.get('/chat-widget', async (req, res) => {
       messages.scrollTop = messages.scrollHeight;
     }
 
+    // Handle header avatar image error
+    const headerAvatar = document.getElementById('headerBotAvatar');
+    if (headerAvatar) {
+      headerAvatar.onerror = function() {
+        this.style.display = 'none';
+        const svg = this.nextElementSibling;
+        if (svg && svg.tagName === 'svg') {
+          svg.style.display = 'flex';
+        }
+      };
+    }
+    
     // Initialize conversation when chat widget loads
     initConversationIfNeeded();
     

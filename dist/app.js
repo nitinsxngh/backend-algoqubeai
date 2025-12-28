@@ -18,6 +18,7 @@ const lead_routes_1 = __importDefault(require("./routes/lead.routes"));
 const conversations_routes_1 = __importDefault(require("./routes/conversations.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
+const instagram_routes_1 = __importDefault(require("./routes/instagram.routes"));
 const cors_1 = require("./middleware/cors");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -58,8 +59,26 @@ app.use((req, res, next) => {
 // Dynamic CORS Setup
 app.use(cors_1.dynamicCors);
 // Body parsing middleware with limits
-app.use(express_1.default.json({ limit: '10mb' }));
-app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+// Skip JSON parsing for multipart/form-data (file uploads handled by multer)
+const jsonParser = express_1.default.json({ limit: '10mb' });
+app.use((req, res, next) => {
+    const contentType = req.headers['content-type'] || '';
+    // Skip JSON parsing for file uploads or upload-image routes
+    if (contentType.includes('multipart/form-data') || req.path.includes('/upload-image')) {
+        return next(); // Skip JSON parsing for file uploads
+    }
+    jsonParser(req, res, next);
+});
+// URL encoded parser (also skip for multipart)
+const urlencodedParser = express_1.default.urlencoded({ extended: true, limit: '10mb' });
+app.use((req, res, next) => {
+    const contentType = req.headers['content-type'] || '';
+    // Skip URL encoded parsing for file uploads or upload-image routes
+    if (contentType.includes('multipart/form-data') || req.path.includes('/upload-image')) {
+        return next(); // Skip URL encoded parsing for file uploads
+    }
+    urlencodedParser(req, res, next);
+});
 app.use((0, cookie_parser_1.default)());
 // Request logging middleware (development only)
 if (process.env.NODE_ENV !== 'production') {
@@ -92,6 +111,8 @@ app.use(embed_routes_1.default);
 app.use(embed_webcomponent_routes_1.default);
 app.use(embed_popup_routes_1.default);
 app.use(chat_widget_routes_1.default);
+// Instagram Webhook
+app.use(instagram_routes_1.default);
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({

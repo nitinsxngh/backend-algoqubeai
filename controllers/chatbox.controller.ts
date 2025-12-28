@@ -1,11 +1,31 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import Chatbox from '../models/chatbox.model';
-import { uploadTextToS3 } from '../utils/s3';
+import { uploadTextToS3, uploadImageToS3, uploadDocumentToS3 } from '../utils/s3';
+import { extractDocumentText } from '../utils/documentParser';
 import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { refreshCorsCache } from '../middleware/cors';
 import { createNotification } from './notification.controller';
+
+// Define the multer file type interface
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+  destination?: string;
+  filename?: string;
+  path?: string;
+}
+
+// Extended request type with file property for image upload
+type AuthenticatedRequestWithFile = AuthenticatedRequest & { 
+  file?: MulterFile;
+  files?: MulterFile[] | { [fieldname: string]: MulterFile[] };
+};
 
 // 🆕 Create chatbox
 export const createChatbox = async (req: AuthenticatedRequest, res: Response) => {
@@ -31,6 +51,7 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
       textFont,
       themeColor,
       displayName,
+      organizationLogo,
     } = req.body;
 
     if (!organizationName) {
@@ -43,6 +64,7 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
     const newChatbox = await Chatbox.create({
       name: filename.replace('.txt', ''),
       organizationName,
+      organizationLogo: organizationLogo || '',
       category,
       domainUrl,
       status: status || 'active',
@@ -54,7 +76,7 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
         textFont,
         themeColor,
         displayName,
-        profileAvatar: '',
+        profileAvatar: organizationLogo || '',
       },
     });
 
@@ -69,7 +91,7 @@ export const createChatbox = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     try {
-      await axios.post('https://n8n.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+      await axios.post('https://workflow.algoqube.com/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
         filename,
       });
     } catch (webhookErr: unknown) {
@@ -155,7 +177,7 @@ export const updateChatbox = async (req: AuthenticatedRequest, res: Response) =>
     }
     
     const userId = req.user.id;
-    const { customContent } = req.body;
+    const { customContent, organizationLogo } = req.body;
 
     console.log('[UpdateChatbox] User ID:', userId, 'Chatbox ID:', req.params.id);
 
@@ -170,12 +192,22 @@ export const updateChatbox = async (req: AuthenticatedRequest, res: Response) =>
       await uploadTextToS3(filename, customContent);
 
       try {
-        await axios.post('https://n8n.xendrax.in/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
+        await axios.post('https://workflow.algoqube.com/webhook/226d2eb3-8b2f-45fe-8c1f-eaa8276ae849', {
           filename: `${filename}.txt`,
         });
       } catch (webhookErr: unknown) {
         console.warn('[Webhook Warning]', webhookErr instanceof Error ? webhookErr.message : webhookErr);
       }
+    }
+
+    // Handle organization logo update
+    if (organizationLogo !== undefined) {
+      req.body.organizationLogo = organizationLogo;
+      // Also update the profileAvatar in configuration
+      if (!req.body.configuration) {
+        req.body.configuration = {};
+      }
+      req.body.configuration.profileAvatar = organizationLogo;
     }
 
     const updated = await Chatbox.findByIdAndUpdate(req.params.id, req.body, {
@@ -624,5 +656,422 @@ export const decryptEmail = async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[Decrypt Email Error]', err);
     res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+/**
+ * POST /api/chatboxes/:id/upload-image
+ * Upload organization image to S3 and update chatbox
+ */
+export const uploadOrganizationImage = async (req: AuthenticatedRequestWithFile, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Upload image to S3
+    const imageUrl = await uploadImageToS3(req.file, chatbox.organizationName);
+
+    // Update chatbox with image URL
+    chatbox.organizationLogo = imageUrl;
+    if (!chatbox.configuration) {
+      chatbox.configuration = {
+        textFont: 'Inter',
+        themeColor: '#6366f1',
+        displayName: chatbox.organizationName,
+        profileAvatar: imageUrl,
+      };
+    } else {
+      chatbox.configuration.profileAvatar = imageUrl;
+    }
+    await chatbox.save();
+
+    res.json({
+      message: 'Image uploaded successfully',
+      imageUrl,
+      chatbox,
+    });
+  } catch (err: any) {
+    console.error('[Upload Image Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to upload image' });
+  }
+};
+
+/**
+ * POST /api/chatboxes/:id/upload-document
+ * Upload document (PDF/Word) to S3, extract text, and update chatbox customContent
+ */
+export const uploadDocument = async (req: AuthenticatedRequestWithFile, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    // Handle multer array response - can be array or object
+    let files: MulterFile[] = [];
+    if (req.files) {
+      if (Array.isArray(req.files)) {
+        files = req.files;
+      } else if (typeof req.files === 'object' && 'documents' in req.files && Array.isArray(req.files.documents)) {
+        files = req.files.documents;
+      }
+    } else if (req.file) {
+      files = [req.file];
+    }
+    
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'No document files provided' });
+    }
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const documentUrls: string[] = [];
+    const extractedTexts: string[] = [];
+    const errors: string[] = [];
+
+    // Process all uploaded documents
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        // Upload document to S3
+        const documentUrl = await uploadDocumentToS3(file, chatbox.organizationName);
+        documentUrls.push(documentUrl);
+
+        // Extract text from document
+        try {
+          const extractedText = await extractDocumentText(file);
+          if (extractedText.trim()) {
+            extractedTexts.push(`--- Document ${i + 1}: ${file.originalname} ---\n${extractedText}`);
+          }
+        } catch (extractError: any) {
+          console.error(`[Document Extraction Error] ${file.originalname}:`, extractError);
+          errors.push(`${file.originalname}: Failed to extract text`);
+          // Continue even if extraction fails - document is still uploaded
+        }
+      } catch (uploadError: any) {
+        console.error(`[Document Upload Error] ${file.originalname}:`, uploadError);
+        errors.push(`${file.originalname}: ${uploadError.message || 'Upload failed'}`);
+      }
+    }
+
+    // Merge all extracted texts
+    const allExtractedText = extractedTexts.join('\n\n');
+    
+    // Merge with existing customContent
+    const existingContent = chatbox.customContent || '';
+    const mergedContent = existingContent && allExtractedText
+      ? `${existingContent}\n\n${allExtractedText}`
+      : existingContent || allExtractedText;
+
+    // Update chatbox with merged content
+    if (allExtractedText) {
+      chatbox.customContent = mergedContent.trim();
+      await chatbox.save();
+
+      // Update S3 text file with merged content
+      try {
+        const filename = `${chatbox.name}.txt`;
+        await uploadTextToS3(filename.replace('.txt', ''), chatbox.customContent);
+      } catch (s3Error) {
+        console.warn('[S3 Text Update Warning]', s3Error);
+      }
+    }
+
+    res.json({
+      message: `${files.length} document(s) processed`,
+      documentUrls,
+      extractedTextLength: allExtractedText.length,
+      documentsProcessed: documentUrls.length,
+      errors: errors.length > 0 ? errors : undefined,
+      customContent: chatbox.customContent,
+    });
+  } catch (err: any) {
+    console.error('[Upload Document Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to upload documents' });
+  }
+};
+
+/**
+ * POST /api/chatboxes/upload-document
+ * Upload document during chatbox creation (before chatbox exists)
+ * Returns extracted text to be merged with customContent
+ */
+export const uploadDocumentForCreation = async (req: AuthenticatedRequestWithFile, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Handle multer array response - can be array or object
+    let files: MulterFile[] = [];
+    if (req.files) {
+      if (Array.isArray(req.files)) {
+        files = req.files;
+      } else if (typeof req.files === 'object' && 'documents' in req.files && Array.isArray(req.files.documents)) {
+        files = req.files.documents;
+      }
+    } else if (req.file) {
+      files = [req.file];
+    }
+    
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'No document files provided' });
+    }
+
+    const { organizationName } = req.body;
+    if (!organizationName) {
+      return res.status(400).json({ error: 'organizationName is required' });
+    }
+
+    const documentUrls: string[] = [];
+    const extractedTexts: string[] = [];
+    const errors: string[] = [];
+
+    // Process all uploaded documents
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        // Upload document to S3
+        const documentUrl = await uploadDocumentToS3(file, organizationName);
+        documentUrls.push(documentUrl);
+
+        // Extract text from document
+        try {
+          const extractedText = await extractDocumentText(file);
+          if (extractedText.trim()) {
+            extractedTexts.push(`--- Document ${i + 1}: ${file.originalname} ---\n${extractedText}`);
+          }
+        } catch (extractError: any) {
+          console.error(`[Document Extraction Error] ${file.originalname}:`, extractError);
+          errors.push(`${file.originalname}: ${extractError.message || 'Failed to extract text'}`);
+        }
+      } catch (uploadError: any) {
+        console.error(`[Document Upload Error] ${file.originalname}:`, uploadError);
+        errors.push(`${file.originalname}: ${uploadError.message || 'Upload failed'}`);
+      }
+    }
+
+    // Merge all extracted texts
+    const allExtractedText = extractedTexts.join('\n\n');
+
+    if (extractedTexts.length === 0 && errors.length > 0) {
+      return res.status(500).json({ 
+        error: 'Failed to extract text from all documents',
+        errors 
+      });
+    }
+
+    res.json({
+      message: `${files.length} document(s) processed`,
+      documentUrls,
+      extractedText: allExtractedText,
+      extractedTextLength: allExtractedText.length,
+      documentsProcessed: extractedTexts.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (err: any) {
+    console.error('[Upload Document For Creation Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to upload documents' });
+  }
+};
+
+/**
+ * GET /api/chatboxes/:id/predefined-questions
+ * Get all predefined questions for a chatbox
+ */
+export const getPredefinedQuestions = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const questions = chatbox.predefinedQuestions || [];
+    // Sort by order, then by creation order
+    const sortedQuestions = questions
+      .map((q: any, index: number) => ({ ...q.toObject(), originalIndex: index }))
+      .sort((a: any, b: any) => {
+        if (a.order !== b.order) return a.order - b.order;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(({ originalIndex, ...q }: any) => q);
+
+    res.json({ questions: sortedQuestions });
+  } catch (err: any) {
+    console.error('[Get Predefined Questions Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch predefined questions' });
+  }
+};
+
+/**
+ * POST /api/chatboxes/:id/predefined-questions
+ * Add a new predefined question
+ */
+export const addPredefinedQuestion = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { question, order, isActive } = req.body;
+
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      return res.status(400).json({ error: 'Question text is required' });
+    }
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Initialize array if it doesn't exist (shouldn't happen with schema default, but safe check)
+    if (!chatbox.predefinedQuestions) {
+      (chatbox as any).predefinedQuestions = [];
+    }
+
+    const currentLength = chatbox.predefinedQuestions?.length || 0;
+    const newQuestion = {
+      question: question.trim(),
+      order: order !== undefined ? Number(order) : currentLength,
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
+    };
+
+    chatbox.predefinedQuestions.push(newQuestion);
+    await chatbox.save();
+
+    res.status(201).json({
+      message: 'Predefined question added successfully',
+      question: newQuestion,
+    });
+  } catch (err: any) {
+    console.error('[Add Predefined Question Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to add predefined question' });
+  }
+};
+
+/**
+ * PUT /api/chatboxes/:id/predefined-questions/:questionId
+ * Update a predefined question
+ */
+export const updatePredefinedQuestion = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id, questionId } = req.params;
+    const { question, order, isActive } = req.body;
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!chatbox.predefinedQuestions || chatbox.predefinedQuestions.length === 0) {
+      return res.status(404).json({ error: 'Predefined question not found' });
+    }
+
+    const questionIndex = chatbox.predefinedQuestions.findIndex(
+      (q: any) => q._id && q._id.toString() === questionId
+    );
+
+    if (questionIndex === -1) {
+      return res.status(404).json({ error: 'Predefined question not found' });
+    }
+
+    if (question !== undefined) {
+      if (typeof question !== 'string' || question.trim().length === 0) {
+        return res.status(400).json({ error: 'Question text cannot be empty' });
+      }
+      chatbox.predefinedQuestions[questionIndex].question = question.trim();
+    }
+
+    if (order !== undefined) {
+      chatbox.predefinedQuestions[questionIndex].order = Number(order);
+    }
+
+    if (isActive !== undefined) {
+      chatbox.predefinedQuestions[questionIndex].isActive = Boolean(isActive);
+    }
+
+    await chatbox.save();
+
+    res.json({
+      message: 'Predefined question updated successfully',
+      question: chatbox.predefinedQuestions[questionIndex],
+    });
+  } catch (err: any) {
+    console.error('[Update Predefined Question Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to update predefined question' });
+  }
+};
+
+/**
+ * DELETE /api/chatboxes/:id/predefined-questions/:questionId
+ * Delete a predefined question
+ */
+export const deletePredefinedQuestion = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = req.user.id;
+    const { id, questionId } = req.params;
+
+    const chatbox = await Chatbox.findById(id);
+    if (!chatbox || chatbox.createdBy.toString() !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!chatbox.predefinedQuestions || chatbox.predefinedQuestions.length === 0) {
+      return res.status(404).json({ error: 'Predefined question not found' });
+    }
+
+    const questionIndex = chatbox.predefinedQuestions.findIndex(
+      (q: any) => q._id && q._id.toString() === questionId
+    );
+
+    if (questionIndex === -1) {
+      return res.status(404).json({ error: 'Predefined question not found' });
+    }
+
+    // Use Mongoose's pull method or splice to remove the subdocument
+    chatbox.predefinedQuestions.splice(questionIndex, 1);
+
+    await chatbox.save();
+
+    res.json({ message: 'Predefined question deleted successfully' });
+  } catch (err: any) {
+    console.error('[Delete Predefined Question Error]', err);
+    res.status(500).json({ error: err.message || 'Failed to delete predefined question' });
   }
 };
