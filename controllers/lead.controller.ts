@@ -27,7 +27,20 @@ export const createLead = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Missing required lead fields' });
     }
 
-    const chatbox = await Chatbox.findById(chatboxId);
+    // Try to find chatbox by _id first, then by name if _id lookup fails
+    let chatbox = null;
+    
+    // Check if chatboxId is a valid MongoDB ObjectId (24 hex characters)
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(chatboxId);
+    
+    if (isValidObjectId) {
+      chatbox = await Chatbox.findById(chatboxId);
+    }
+    
+    // If not found by _id or not a valid ObjectId, try to find by name
+    if (!chatbox) {
+      chatbox = await Chatbox.findOne({ name: chatboxId, status: 'active' });
+    }
 
     if (!chatbox) {
       return res.status(404).json({ message: 'Chatbot not found' });

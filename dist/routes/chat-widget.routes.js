@@ -486,6 +486,38 @@ router.get('/chat-widget', async (req, res) => {
       transition: all 0.2s;
     }
 
+    .contact-button {
+      align-self: flex-start;
+      padding: 10px 18px;
+      background: ${themeColor};
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-family: ${textFont};
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      width: auto;
+      min-width: 120px;
+      z-index: 10;
+      position: relative;
+    }
+
+    .contact-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px ${themeColor}40;
+    }
+
+    .contact-button:active {
+      transform: translateY(0);
+    }
+
     .lead-form-submit:hover:not(:disabled) {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px ${themeColor}40;
@@ -1023,6 +1055,74 @@ router.get('/chat-widget', async (req, res) => {
       return leadKeywords.some(keyword => lowerMessage.includes(keyword));
     }
 
+    function shouldShowContactButton(message) {
+      if (!message || typeof message !== 'string') {
+        return false;
+      }
+      
+      // Get plain text from message (handle HTML if present)
+      let plainText = message;
+      try {
+        // If message contains HTML, extract text
+        if (message.includes('<') || message.includes('&')) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = message;
+          plainText = tempDiv.textContent || tempDiv.innerText || message;
+        }
+      } catch (e) {
+        plainText = message;
+      }
+      
+      // Normalize text - lowercase, trim, normalize whitespace
+      const normalizedText = plainText
+        .replace(/[\u2018\u2019\u201A\u201B]/g, "'")  // Replace all smart quotes
+        .replace(/[\u201C\u201D\u201E\u201F]/g, '"')  // Replace smart double quotes
+        .replace(/\s+/g, ' ')                        // Normalize whitespace
+        .trim()
+        .toLowerCase();
+      
+      // Key phrases that indicate contact intent (most specific first)
+      const contactPhrases = [
+        'reach out to us directly',
+        'reach out to us',
+        'contact us directly',
+        'contact us',
+        'get in touch',
+        'reach out directly',
+        'reach out',
+        'connect with us',
+        'feel free to reach out',
+        'feel free to contact',
+        'please reach out',
+        'please contact',
+        'you can reach out',
+        'you can contact',
+        'for more information'
+      ];
+      
+      // Check for exact phrase matches
+      for (let i = 0; i < contactPhrases.length; i++) {
+        if (normalizedText.indexOf(contactPhrases[i]) !== -1) {
+          return true;
+        }
+      }
+      
+      // Fallback: check for keyword combinations
+      // This catches messages like "reach out to us directly" even if phrasing varies
+      const hasReachOut = normalizedText.indexOf('reach out') !== -1;
+      const hasContact = normalizedText.indexOf('contact') !== -1;
+      const hasDirectly = normalizedText.indexOf('directly') !== -1;
+      const hasForMore = normalizedText.indexOf('for') !== -1 || normalizedText.indexOf('more') !== -1;
+      const hasWebsite = normalizedText.indexOf('website') !== -1 || normalizedText.indexOf('http') !== -1;
+      
+      // Show button if message contains contact-related words AND context words
+      if ((hasReachOut || hasContact) && (hasDirectly || hasForMore || hasWebsite)) {
+        return true;
+      }
+      
+      return false;
+    }
+
     function showLeadForm(message) {
       pendingMessage = message;
       // Ensure conversation is initialized before showing lead form
@@ -1398,8 +1498,92 @@ router.get('/chat-widget', async (req, res) => {
       time.className = 'message-time';
       time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      content.appendChild(bubble);
-      content.appendChild(time);
+      // For bot messages, check if contact button should be shown
+      let showContactBtn = false;
+      if (role === 'bot') {
+        // Get normalized text for matching
+        let normalizedText = text.toLowerCase();
+        try {
+          if (text.includes('<') || text.includes('&')) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = text;
+            normalizedText = (tempDiv.textContent || tempDiv.innerText || text).toLowerCase();
+          }
+        } catch (e) {
+          normalizedText = text.toLowerCase();
+        }
+        
+        const shouldShow = shouldShowContactButton(text);
+        showContactBtn = shouldShow;
+        
+        // More aggressive fallback matching - check for key words
+        if (!showContactBtn) {
+          const hasReach = normalizedText.includes('reach');
+          const hasContact = normalizedText.includes('contact');
+          const hasDirectly = normalizedText.includes('directly');
+          const hasForMore = normalizedText.includes('for') || normalizedText.includes('more');
+          const hasWebsite = normalizedText.includes('website') || normalizedText.includes('http');
+          
+          // Show button if message has "reach" or "contact" AND ("directly" or "for"/"more" or website link)
+          // This catches messages like "reach out to us directly" or "contact us for more info"
+          if ((hasReach || hasContact) && (hasDirectly || hasForMore || hasWebsite)) {
+            console.log('[Contact Button] Fallback match - showing button', {
+              hasReach, hasContact, hasDirectly, hasForMore, hasWebsite
+            });
+            showContactBtn = true;
+          }
+        }
+        
+        // Debug logging - always log for bot messages
+        console.log('[Contact Button Debug]', {
+          text: text.substring(0, 150),
+          normalized: normalizedText.substring(0, 150),
+          shouldShow: shouldShow,
+          showContactBtn: showContactBtn,
+          role: role
+        });
+      }
+      
+      if (showContactBtn) {
+        console.log('[Contact Button] Creating button for message:', text.substring(0, 50));
+        // Create wrapper for message with contact button
+        const messageWrapper = document.createElement('div');
+        messageWrapper.style.display = 'flex';
+        messageWrapper.style.flexDirection = 'column';
+        messageWrapper.style.gap = '8px';
+        messageWrapper.style.width = '100%';
+        messageWrapper.style.maxWidth = '100%';
+        messageWrapper.style.alignItems = 'flex-start';
+        
+        messageWrapper.appendChild(bubble);
+        messageWrapper.appendChild(time);
+        
+        // Add contact button
+        const contactButton = document.createElement('button');
+        contactButton.className = 'contact-button';
+        contactButton.textContent = 'Contact Us';
+        contactButton.type = 'button';
+        contactButton.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; width: auto; min-width: 120px; padding: 10px 18px; background: ' + themeColor + '; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10; position: relative;';
+        contactButton.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('[Contact Button] Button clicked');
+          if (typeof showLeadForm === 'function') {
+            showLeadForm('');
+          } else {
+            console.error('[Contact Button] showLeadForm function not found');
+          }
+        };
+        messageWrapper.appendChild(contactButton);
+        
+        content.appendChild(messageWrapper);
+        console.log('[Contact Button] Button added to DOM');
+      } else {
+        // Regular message without contact button
+        content.appendChild(bubble);
+        content.appendChild(time);
+      }
+      
       messageDiv.appendChild(avatar);
       messageDiv.appendChild(content);
       

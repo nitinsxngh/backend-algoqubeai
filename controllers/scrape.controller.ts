@@ -320,7 +320,8 @@ export const scrapeWebsite = async (req: Request, res: Response) => {
           console.log('Apify API failed, trying client method...');
           
           // Method 1b: Fallback to Apify client
-          const { ApifyClient } = await import('apify-client');
+          const apifyModule = await import('apify-client') as any;
+          const ApifyClient = apifyModule.ApifyClient;
           const client = new ApifyClient({ token: APIFY_TOKEN });
           
           const input = {
